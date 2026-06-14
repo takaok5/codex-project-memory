@@ -1,5 +1,6 @@
 import { indexProject } from "../../indexer/project-indexer.js";
 import { resolveRuntimeContext } from "../../runtime/context.js";
+import { createMemorySnapshot, rotateSnapshotsForWrite } from "../../runtime/snapshots.js";
 import { getProjectState } from "../../store/project-state-repository.js";
 import { toErrorPayload } from "../../shared/errors.js";
 import type { CliResult, IndexOutput } from "../../shared/types.js";
@@ -15,7 +16,9 @@ export async function cmdIndex(options: IndexCliOptions): Promise<CliResult<Inde
     const ctx = resolveRuntimeContext({ cwd: options.cwd, openDb: true });
     const db = ctx.db as MemoryDb;
     try {
+      rotateSnapshotsForWrite(ctx);
       const result = await indexProject(ctx, { changedOnly: options.changedOnly });
+      createMemorySnapshot(ctx, { ref: "latest", write: true });
       const records = countRecords(db);
       const state = getProjectState(db);
       return {

@@ -492,3 +492,161 @@ export interface IndexOutput {
     memoryDirty: boolean;
   };
 }
+
+export interface FrameRecord {
+  id: FrameName;
+  frameType: FrameType;
+  title: string;
+  svgPath: string;
+  pngPath: string | null;
+  mapPath: string;
+  sourceHash: string;
+  generatedAt: string;
+}
+
+export interface NormalizedGraph {
+  version: 1;
+  project: { name: string; status: MemoryStatus; generatedAt?: string };
+  modules: JsonObject[];
+  files: JsonObject[];
+  symbols: JsonObject[];
+  routes: JsonObject[];
+  warnings: JsonObject[];
+  duplicateCandidates: JsonObject[];
+  edges: JsonObject[];
+  criticalRules: string[];
+}
+
+export interface GraphNodeLayout {
+  id: string;
+  kind: string;
+  label: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  path?: string;
+}
+
+export interface GraphEdgeLayout {
+  id: string;
+  from: string;
+  to: string;
+  kind: string;
+}
+
+export interface LayoutResult {
+  frame: FrameName;
+  width: number;
+  height: number;
+  nodes: GraphNodeLayout[];
+  edges: GraphEdgeLayout[];
+  warnings: string[];
+}
+
+export interface LayoutOptions {
+  frame?: FrameName;
+  width?: number;
+  columnWidth?: number;
+  rowHeight?: number;
+}
+
+export interface FrameMapItem {
+  id: string;
+  kind: "module" | "file" | "symbol" | "route" | "warning" | "duplicate" | "rule";
+  label: string;
+  bbox: { x: number; y: number; width: number; height: number };
+  paths: string[];
+  symbols?: string[];
+  commands: string[];
+  metadata?: Record<string, JsonValue>;
+}
+
+export interface FrameMap {
+  version: 1;
+  frame: FrameName;
+  svg: string;
+  png: string | null;
+  sourceHash: string;
+  items: FrameMapItem[];
+}
+
+export interface GeneratedJsonResult {
+  paths: string[];
+  hashes: Record<string, string>;
+}
+
+export interface RenderOptions {
+  frame?: FrameName;
+  png?: boolean;
+  writeSnapshot?: boolean;
+}
+
+export interface PngExportResult {
+  ok: boolean;
+  path?: string;
+  warning?: string;
+}
+
+export interface RenderResult {
+  frame: FrameName;
+  svg: string;
+  png: string | null;
+  map: string;
+  generatedJson: string[];
+  sourceHash: string;
+  warnings: string[];
+}
+
+export interface RenderOutput {
+  frames: CliFramePath[];
+  generatedJson: string[];
+  pngExported: boolean;
+  sourceHash: string;
+}
+
+export interface FrameOutput extends CliFramePath {
+  summary: {
+    nodes: number;
+    edges: number;
+    warnings: number;
+  };
+}
+
+export interface MemorySnapshot {
+  version: 1;
+  createdAt: string;
+  schemaVersion: "1" | null;
+  configHash: string | null;
+  files: Array<{ path: string; hash: string; moduleId: string | null }>;
+  symbols: Array<{ fqName: string; kind: string; filePath: string; signatureHash?: string; bodyHash?: string }>;
+  warnings: Array<{ warningType: string; severity: WarningSeverity; filePath?: string; fingerprint: string }>;
+  frames: Array<{ id: FrameName; svgPath: string; pngPath: string | null; mapPath: string; sourceHash: string }>;
+}
+
+export type SnapshotRef = "previous" | "latest" | "current" | string;
+
+export interface MemoryDiff {
+  changedFiles: string[];
+  changedModules: string[];
+  addedSymbols: string[];
+  removedSymbols: string[];
+  newWarnings: string[];
+  resolvedWarnings: string[];
+  warnings: string[];
+}
+
+export interface DiffOutput {
+  from: "previous" | "latest" | "current" | string;
+  to: "previous" | "latest" | "current" | string;
+  changedFiles: string[];
+  addedFiles: string[];
+  removedFiles: string[];
+  changedModules: string[];
+  addedSymbols: string[];
+  removedSymbols: string[];
+  changedWarnings: {
+    added: string[];
+    resolved: string[];
+  };
+}

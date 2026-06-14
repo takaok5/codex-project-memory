@@ -2,9 +2,12 @@ import { pathToFileURL } from "node:url";
 import { Command, CommanderError } from "commander";
 import { printResult } from "./output.js";
 import { cmdDoctor } from "./commands/doctor.js";
+import { cmdDiff } from "./commands/diff.js";
+import { cmdFrame } from "./commands/frame.js";
 import { cmdHead } from "./commands/head.js";
 import { cmdIndex } from "./commands/index.js";
 import { cmdInit } from "./commands/init.js";
+import { cmdRender } from "./commands/render.js";
 import { cmdScan } from "./commands/scan.js";
 import { toErrorPayload } from "../shared/errors.js";
 import { VERSION } from "../shared/version.js";
@@ -65,6 +68,38 @@ export async function runCli(argv: string[], cwd = process.cwd()): Promise<numbe
     .option("--json", "emit compact JSON")
     .action(async (options: { changed?: boolean; json?: boolean }) => {
       const result = await cmdIndex({ cwd, changedOnly: Boolean(options.changed) });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+
+  program
+    .command("render")
+    .description("render current memory frame")
+    .option("--frame <frame>", "current|overview|modules|duplicates|risks")
+    .option("--no-png", "disable best-effort PNG export")
+    .option("--json", "emit compact JSON")
+    .action(async (options: { frame?: string; png?: boolean; json?: boolean }) => {
+      const result = await cmdRender({ cwd, frame: options.frame, png: options.png });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+
+  program
+    .command("frame")
+    .description("show registered frame metadata")
+    .argument("<frame>", "current|overview|modules|duplicates|risks")
+    .option("--json", "emit compact JSON")
+    .action(async (frame: string, options: { json?: boolean }) => {
+      const result = await cmdFrame({ cwd, frame });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+
+  program
+    .command("diff")
+    .description("diff project memory snapshots")
+    .option("--from <ref>", "snapshot ref", "previous")
+    .option("--to <ref>", "snapshot ref", "current")
+    .option("--json", "emit compact JSON")
+    .action(async (options: { from?: string; to?: string; json?: boolean }) => {
+      const result = await cmdDiff({ cwd, from: options.from, to: options.to });
       exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
     });
 
