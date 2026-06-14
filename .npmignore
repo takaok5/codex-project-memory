@@ -12,3 +12,4 @@ codex-project-memory-*.tgz
 test/
 test-results/
 .github/
+plugins/

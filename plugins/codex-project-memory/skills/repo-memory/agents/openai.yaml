@@ -1,0 +1,16 @@
+interface:
+  display_name: Repo Memory
+  short_description: Use project-memory MCP tools for repository context and duplicate checks.
+  brand_color: "#2563EB"
+  default_prompt: Check project memory before implementing this change.
+policy:
+  allow_implicit_invocation: true
+dependencies:
+  tools:
+    - memory.agent
+    - memory.head
+    - memory.query
+    - memory.duplicates
+    - memory.frame
+    - memory.refresh
+    - memory.diff

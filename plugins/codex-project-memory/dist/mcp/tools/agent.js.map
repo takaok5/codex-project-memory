@@ -1,0 +1,1 @@
+{"version":3,"file":"agent.js","sourceRoot":"","sources":["../../../src/mcp/tools/agent.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,eAAe,EAAE,MAAM,+BAA+B,CAAC;AAIhE,MAAM,CAAC,KAAK,UAAU,iBAAiB,CAAC,KAAoB,EAAE,GAAe;IAC3E,OAAO,eAAe,CAAC,KAAK,EAAE,EAAE,GAAG,EAAE,GAAG,CAAC,GAAG,EAAE,CAAC,CAAC;AAClD,CAAC"}

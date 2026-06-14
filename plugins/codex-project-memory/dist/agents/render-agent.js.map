@@ -1,0 +1,1 @@
+{"version":3,"file":"render-agent.js","sourceRoot":"","sources":["../../src/agents/render-agent.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,kBAAkB,EAAE,MAAM,+BAA+B,CAAC;AAGnE,MAAM,CAAC,KAAK,UAAU,cAAc,CAAC,GAAmB;IACtD,MAAM,MAAM,GAAG,MAAM,kBAAkB,CAAC,GAAG,CAAC,CAAC;IAC7C,OAAO,EAAE,KAAK,EAAE,MAAM,CAAC,KAAK,EAAE,QAAQ,EAAE,MAAM,CAAC,QAAQ,EAAE,CAAC;AAC5D,CAAC"}

@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+set -eu
+PLUGIN_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+exec node "$PLUGIN_ROOT/dist/cli/pmem.js" "$@"

@@ -1,0 +1,41 @@
+export const ARTIFACT_KINDS = [
+    "service",
+    "controller",
+    "dto",
+    "type",
+    "interface",
+    "enum",
+    "repository",
+    "utility",
+    "route",
+    "migration",
+    "table",
+    "job",
+    "adapter",
+    "module",
+    "feature",
+    "class",
+    "function",
+    "method",
+    "const",
+    "provider"
+];
+export const PMEM_ERROR_CODES = [
+    "INVALID_INPUT",
+    "VALIDATION_ERROR",
+    "NOT_INITIALIZED",
+    "ALREADY_EXISTS",
+    "CONFIG_ERROR",
+    "FS_ERROR",
+    "DB_ERROR",
+    "INDEX_ERROR",
+    "RENDER_ERROR",
+    "AGENT_ERROR",
+    "MCP_ERROR",
+    "SAFETY_ERROR",
+    "STATE_ERROR",
+    "FRAME_NOT_FOUND",
+    "TEMPLATE_ERROR",
+    "INTERNAL_ERROR"
+];
+//# sourceMappingURL=types.js.map

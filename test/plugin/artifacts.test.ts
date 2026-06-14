@@ -15,6 +15,16 @@ describe("plugin static artifacts", () => {
   it("validates checked-in plugin packaging artifacts", () => {
     const manifest = readJson(".codex-plugin/plugin.json");
     const mcpConfig = readJson(".mcp.json");
+    const marketplace = readJson(".agents/plugins/marketplace.json") as {
+      name: string;
+      interface: { displayName: string };
+      plugins: Array<{
+        name: string;
+        source: { source: string; path: string };
+        policy: { installation: string; authentication: string };
+        category: string;
+      }>;
+    };
 
     expect(validatePluginManifest(manifest)).toEqual(buildPluginManifest({
       packageName: "codex-project-memory",
@@ -28,7 +38,21 @@ describe("plugin static artifacts", () => {
       command: "node",
       args: ["dist/mcp/server.js"]
     }));
+    expect(marketplace).toEqual({
+      name: "codex-project-memory",
+      interface: { displayName: "Codex Project Memory" },
+      plugins: [
+        {
+          name: "codex-project-memory",
+          source: { source: "local", path: "./plugins/codex-project-memory" },
+          policy: { installation: "AVAILABLE", authentication: "ON_INSTALL" },
+          category: "Productivity"
+        }
+      ]
+    });
     expect(validatePluginArtifacts(root)).toEqual({ ok: true, missing: [], warnings: [] });
+    expect(validatePluginArtifacts(path.join(root, "plugins/codex-project-memory"))).toEqual({ ok: true, missing: [], warnings: [] });
+    expect(readFileSync(path.join(root, "plugins/codex-project-memory/dist/store/schema.sql"), "utf8")).toContain("CREATE TABLE IF NOT EXISTS project_state");
   });
 
   it("renders the repo-memory skill without project memory facts", () => {
