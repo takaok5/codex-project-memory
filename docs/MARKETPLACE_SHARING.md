@@ -50,6 +50,11 @@ Open the Codex Plugin Directory, select the **Codex Project Memory**
 marketplace, install **Codex Project Memory**, restart Codex if needed, and
 start a new thread.
 
+On first MCP startup the plugin runs `npm ci --omit=dev` inside the installed
+plugin folder if runtime dependencies are missing. The bootstrap writes status
+messages to stderr only, then starts `dist/mcp/server.js`. That first startup
+needs access to the npm registry or an already-warm npm cache.
+
 ## Share From A Local Folder Or Archive
 
 Send the repository folder or archive. After unpacking it, users can run:
@@ -87,8 +92,8 @@ node dist/cli/pmem.js --help
 node dist/cli/pmem.js --version
 npm run marketplace:sync
 npm pack --dry-run
-python C:/Users/FAT-E/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py C:/Users/FAT-E/progetti/MemoryCodex
-python C:/Users/FAT-E/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py C:/Users/FAT-E/progetti/MemoryCodex/plugins/codex-project-memory
+python /path/to/plugin-creator/scripts/validate_plugin.py .
+python /path/to/plugin-creator/scripts/validate_plugin.py plugins/codex-project-memory
 ```
 
 Do not commit `node_modules/`, `.codex/memory/`, local `.tgz` files, or runtime

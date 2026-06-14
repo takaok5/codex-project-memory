@@ -8,6 +8,7 @@ import { validateMcpConfig } from "./mcp-config.js";
 const REQUIRED_FILES = [
   ".codex-plugin/plugin.json",
   ".mcp.json",
+  "scripts/bootstrap-mcp.mjs",
   "skills/repo-memory/SKILL.md",
   "skills/repo-memory/agents/openai.yaml",
   "assets/icon.png",

@@ -36,7 +36,7 @@ describe("plugin static artifacts", () => {
     expect(validateMcpConfig(mcpConfig)).toEqual(buildMcpConfig({
       serverName: "project-memory",
       command: "node",
-      args: ["dist/mcp/server.js"]
+      args: ["scripts/bootstrap-mcp.mjs"]
     }));
     expect(marketplace).toEqual({
       name: "codex-project-memory",
@@ -53,6 +53,7 @@ describe("plugin static artifacts", () => {
     expect(validatePluginArtifacts(root)).toEqual({ ok: true, missing: [], warnings: [] });
     expect(validatePluginArtifacts(path.join(root, "plugins/codex-project-memory"))).toEqual({ ok: true, missing: [], warnings: [] });
     expect(readFileSync(path.join(root, "plugins/codex-project-memory/dist/store/schema.sql"), "utf8")).toContain("CREATE TABLE IF NOT EXISTS project_state");
+    expect(readFileSync(path.join(root, "plugins/codex-project-memory/scripts/bootstrap-mcp.mjs"), "utf8")).toContain("npm ci");
   });
 
   it("renders the repo-memory skill without project memory facts", () => {

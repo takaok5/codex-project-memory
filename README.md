@@ -56,7 +56,10 @@ pmem head --json
 
 ## MCP setup
 
-Use `.mcp.json` with server name `project-memory` and command `node dist/mcp/server.js`.
+Use `.mcp.json` with server name `project-memory`. The server command is
+`node scripts/bootstrap-mcp.mjs`; on first start, the bootstrap installs runtime
+dependencies in the installed plugin folder if they are missing, then starts
+`dist/mcp/server.js`.
 
 ## Codex Plugin Distribution
 
@@ -84,7 +87,10 @@ codex plugin marketplace add /absolute/path/to/codex-project-memory
 ```
 
 After adding the marketplace, open the Codex Plugin Directory, select
-**Codex Project Memory**, install the plugin, and start a new thread.
+**Codex Project Memory**, install the plugin, and start a new thread. On first
+MCP startup the plugin runs `npm ci --omit=dev` inside the installed plugin
+folder so users do not need to prepare `node_modules` manually. That first
+startup needs access to the npm registry or an already-warm npm cache.
 
 More detail: `docs/MARKETPLACE_SHARING.md`.
 

@@ -2,7 +2,7 @@
   "mcpServers": {
     "project-memory": {
       "command": "node",
-      "args": ["dist/mcp/server.js"]
+      "args": ["scripts/bootstrap-mcp.mjs"]
     }
   }
 }

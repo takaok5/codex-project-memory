@@ -9,7 +9,7 @@ const mcpConfigSchema = z
         "project-memory": z
           .object({
             command: z.literal("node"),
-            args: z.tuple([z.literal("dist/mcp/server.js")])
+            args: z.tuple([z.literal("scripts/bootstrap-mcp.mjs")])
           })
           .strict()
       })
