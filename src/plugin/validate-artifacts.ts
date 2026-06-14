@@ -10,7 +10,6 @@ const REQUIRED_FILES = [
   ".mcp.json",
   "skills/repo-memory/SKILL.md",
   "skills/repo-memory/agents/openai.yaml",
-  "hooks/hooks.json",
   "assets/icon.png",
   "assets/logo.png"
 ];
@@ -31,8 +30,8 @@ export function validatePluginArtifacts(root: string): PluginArtifactValidationR
 
   validateJsonFile(root, ".codex-plugin/plugin.json", warnings, validatePluginManifest);
   validateJsonFile(root, ".mcp.json", warnings, validateMcpConfig);
-  validateJsonFile(root, "hooks/hooks.json", warnings, validateHooksConfig);
   validateSkill(root, warnings);
+  validateSkillAgent(root, warnings);
   validatePng(path.join(root, "assets/icon.png"), "assets/icon.png", warnings);
   validatePng(path.join(root, "assets/logo.png"), "assets/logo.png", warnings);
 
@@ -57,32 +56,23 @@ function validateJsonFile(root: string, relativePath: string, warnings: string[]
   }
 }
 
-function validateHooksConfig(value: unknown): void {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("hooks config must be an object");
-  }
-  const hooks = (value as { hooks?: unknown }).hooks;
-  if (!hooks || typeof hooks !== "object" || Array.isArray(hooks)) {
-    throw new Error("hooks object is required");
-  }
-
-  for (const hookName of ["UserPromptSubmit", "PostToolUse", "Stop", "SubagentStop"]) {
-    const hookValue = (hooks as Record<string, unknown>)[hookName];
-    const serialized = JSON.stringify(hookValue);
-    if (!Array.isArray(hookValue) || !serialized.includes("node ${PLUGIN_ROOT}/dist/hooks/") || !serialized.includes(".js")) {
-      throw new Error(`missing or invalid ${hookName}`);
-    }
-  }
-}
-
 function validateSkill(root: string, warnings: string[]): void {
   const text = readFileSync(path.join(root, "skills/repo-memory/SKILL.md"), "utf8");
   if (!text.startsWith("---\n")) {
     warnings.push("skills/repo-memory/SKILL.md: missing YAML frontmatter");
   }
-  for (const required of ["memory.head", "memory.query", "memory.duplicates", "Do not read `.codex/memory/memory.db` directly", "trusted by the user"]) {
+  for (const required of ["Supported lifecycle", "memory.head", "memory.query", "memory.duplicates", "memory.refresh", "Do not read `.codex/memory/memory.db` directly", "implicit skill policy"]) {
     if (!text.includes(required)) {
       warnings.push(`skills/repo-memory/SKILL.md: missing ${required}`);
+    }
+  }
+}
+
+function validateSkillAgent(root: string, warnings: string[]): void {
+  const text = readFileSync(path.join(root, "skills/repo-memory/agents/openai.yaml"), "utf8");
+  for (const required of ["allow_implicit_invocation: true", "memory.head", "memory.query", "memory.duplicates", "memory.frame", "memory.refresh", "memory.diff"]) {
+    if (!text.includes(required)) {
+      warnings.push(`skills/repo-memory/agents/openai.yaml: missing ${required}`);
     }
   }
 }

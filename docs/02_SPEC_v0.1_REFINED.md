@@ -38,7 +38,7 @@ Codex Project Memory Plugin
   ├─ plugin manifest
   ├─ MCP server
   ├─ repo-memory skill bundled
-  ├─ lifecycle hooks
+  ├─ supported lifecycle skill
   ├─ pmem CLI
   ├─ SQLite project memory store
   ├─ TS/JS scanner + AST indexer
@@ -130,7 +130,7 @@ Non deve includere dump codice, path assoluti o spiegazioni lunghe.
 
 | Componente | Responsabilità | Persistenza | Side effects |
 |---|---|---|---|
-| Plugin manifest | Espone plugin, skill, MCP, hooks | `.codex-plugin/plugin.json` | Nessuno runtime |
+| Plugin manifest | Espone plugin, skill e MCP | `.codex-plugin/plugin.json` | Nessuno runtime |
 | MCP server | Interfaccia operativa per Codex | Nessuna diretta oltre store | Letture/refresh richiesti |
 | Skill `repo-memory` | Istruzioni workflow | `skills/repo-memory/SKILL.md` | Nessuno |
 | CLI `pmem` | Init/index/render/query locali | `.codex/memory/*` | Crea/aggiorna memoria |
@@ -138,7 +138,7 @@ Non deve includere dump codice, path assoluti o spiegazioni lunghe.
 | Scanner/indexer | File, hash, simboli, route | DB + warnings | Legge repository |
 | Renderer | SVG, map JSON, PNG nullable | `current.*`, `frames/*`, `generated/*` | Scrive output deterministici |
 | Micro-agent dispatcher | Retrieval/duplicate/drift/risk rule-based | `retrieval_logs`, warnings | Nessuna modifica codice |
-| Hooks | Dirty/refresh lifecycle | project_state/log | Aggiornamenti conservativi |
+| Supported lifecycle | Skill implicita + tool MCP | project_state/log via `memory.refresh` | Aggiornamenti richiesti da MCP |
 | Subagent templates | Agent opzionali read-only | `.codex/agents/*.toml` | Solo installazione template |
 
 ---
@@ -229,17 +229,12 @@ Shape concettuale allineata a `ProjectMemoryConfig` di `04_FUNCTION_CONTRACTS.md
     "maxSymbols": 12,
     "maxWarnings": 8
   },
-  "hooks": {
-    "enabled": true,
-    "autoRefreshOnStop": true,
-    "maxChangedFilesForStopRefresh": 20
-  }
 }
 ```
 
 Regole:
 
-- config assente è ammessa solo per `doctor`, `head` e hook leggeri documentati;
+- config assente è ammessa solo per `doctor`, `head`, `memory.head` e `agents list/install`;
 - config invalida produce `CONFIG_ERROR`;
 - include/exclude non devono permettere indicizzazione di `.codex/memory/**`;
 - `render.png=false` non è errore e produce `png=null`.
@@ -260,9 +255,9 @@ Regole:
 
 ## 9. Vincoli di sicurezza e affidabilità
 
-- Gli hook devono essere approvati/trustati dall'utente dopo installazione del plugin.
-- Gli hook devono essere no-op sicuri se l'evento è incompleto.
-- `UserPromptSubmit` non deve fare scan/index/render.
+- Il plugin non deve dichiarare hook non supportati.
+- Il lifecycle deve passare da skill implicita e tool MCP.
+- Prompt start deve usare `memory.head`, non scan/index/render.
 - `Stop` deve usare loop guard env + lock file.
 - La CLI non deve cancellare dati utente fuori da `.codex/memory`.
 - `pmem agents install` non deve sovrascrivere agenti modificati senza `--force`.

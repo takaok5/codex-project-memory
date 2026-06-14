@@ -40,7 +40,7 @@ export type ArtifactKind =
   | "provider";
 
 export type WarningSeverity = "info" | "warning" | "critical";
-export type WarningSource = "parser" | "indexer" | "renderer" | "agent" | "hook" | "mcp" | "config" | "inferred";
+export type WarningSource = "parser" | "indexer" | "renderer" | "agent" | "mcp" | "config" | "inferred";
 export type RiskLevel = "low" | "medium" | "high";
 export type DuplicateVerdict = "create_new_artifact" | "extend_existing_artifact" | "needs_human_review";
 export type FrameName = "current" | "overview" | "modules" | "duplicates" | "risks";
@@ -59,7 +59,6 @@ export const PMEM_ERROR_CODES = [
   "RENDER_ERROR",
   "AGENT_ERROR",
   "MCP_ERROR",
-  "HOOK_ERROR",
   "SAFETY_ERROR",
   "STATE_ERROR",
   "FRAME_NOT_FOUND",
@@ -146,14 +145,6 @@ export interface SkillDocOptions {
   mcpServerName: "project-memory";
 }
 
-export interface HooksConfigOptions {
-  pluginRootVar?: "${PLUGIN_ROOT}";
-}
-
-export interface HooksConfig {
-  hooks: JsonObject;
-}
-
 export interface PluginArtifactValidationResult {
   ok: boolean;
   missing: string[];
@@ -214,11 +205,6 @@ export interface ProjectMemoryConfig {
     maxFiles: number;
     maxSymbols: number;
     maxWarnings: number;
-  };
-  hooks: {
-    enabled: boolean;
-    autoRefreshOnStop: boolean;
-    maxChangedFilesForStopRefresh: number;
   };
 }
 
@@ -772,19 +758,6 @@ export interface DiffOutput {
     added: string[];
     resolved: string[];
   };
-}
-
-export interface HookOutput {
-  ok: true;
-  action: "noop" | "additional_context" | "marked_dirty" | "refreshed" | "logged";
-  additionalContext?: string;
-  warnings: string[];
-}
-
-export interface HookRefreshLock {
-  createdAt: string;
-  pid: number;
-  reason: string;
 }
 
 export interface AgentsInstallOutput {

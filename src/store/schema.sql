@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS warnings (
   symbol_id INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
   message TEXT NOT NULL,
   recommendation TEXT,
-  source TEXT NOT NULL DEFAULT 'inferred' CHECK (source IN ('parser', 'indexer', 'renderer', 'agent', 'hook', 'mcp', 'config', 'inferred')),
+  source TEXT NOT NULL DEFAULT 'inferred' CHECK (source IN ('parser', 'indexer', 'renderer', 'agent', 'mcp', 'config', 'inferred')),
   confidence REAL NOT NULL DEFAULT 1.0 CHECK (confidence >= 0.0 AND confidence <= 1.0),
   fingerprint TEXT NOT NULL,
   created_at TEXT NOT NULL,

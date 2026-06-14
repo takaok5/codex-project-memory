@@ -13,7 +13,6 @@ const RECOVERABLE_DEFAULTS: Record<PmemErrorCode, boolean> = {
   RENDER_ERROR: true,
   AGENT_ERROR: true,
   MCP_ERROR: true,
-  HOOK_ERROR: true,
   SAFETY_ERROR: false,
   STATE_ERROR: true,
   FRAME_NOT_FOUND: true,

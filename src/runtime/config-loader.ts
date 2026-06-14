@@ -45,13 +45,6 @@ const configSchema = z
         maxSymbols: z.number().int().min(1).max(40),
         maxWarnings: z.number().int().min(0).max(20)
       })
-      .strict(),
-    hooks: z
-      .object({
-        enabled: z.boolean(),
-        autoRefreshOnStop: z.boolean(),
-        maxChangedFilesForStopRefresh: z.number().int().min(0).max(200)
-      })
       .strict()
   })
   .strict();
@@ -69,8 +62,7 @@ export function defaultProjectConfig(projectName = "auto"): ProjectMemoryConfig 
     modules: [],
     criticalRules: [],
     render: { png: true, maxModules: 40, maxWarnings: 20 },
-    agents: { maxFiles: 8, maxSymbols: 12, maxWarnings: 8 },
-    hooks: { enabled: true, autoRefreshOnStop: true, maxChangedFilesForStopRefresh: 20 }
+    agents: { maxFiles: 8, maxSymbols: 12, maxWarnings: 8 }
   };
 }
 
@@ -156,14 +148,15 @@ function normalizeConfig(value: unknown): unknown {
   if (!isPlainObject(value)) {
     return value;
   }
-  const config = value as unknown as ProjectMemoryConfig;
+  const config = value as unknown as ProjectMemoryConfig & { hooks?: unknown };
+  const { hooks: _legacyHooks, ...configWithoutLegacyHooks } = config;
   const scan = config.scan ? { ...config.scan } : config.scan;
   if (scan) {
     scan.include = scan.include?.map(normalizePathSeparators);
     scan.exclude = Array.from(new Set([...(scan.exclude ?? []), ".codex/memory/**"].map(normalizePathSeparators)));
   }
   return {
-    ...config,
+    ...configWithoutLegacyHooks,
     scan,
     modules: (config.modules ?? []).map((module) => ({
       ...module,

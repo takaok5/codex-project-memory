@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ensureAssetPlaceholders } from "../../src/plugin/assets.js";
-import { buildHooksConfig } from "../../src/plugin/hooks-config.js";
 import { buildPluginManifest, validatePluginManifest } from "../../src/plugin/manifest.js";
 import { buildMcpConfig, validateMcpConfig } from "../../src/plugin/mcp-config.js";
 import { buildRepoMemorySkillDoc } from "../../src/plugin/skill.js";
@@ -16,7 +15,6 @@ describe("plugin static artifacts", () => {
   it("validates checked-in plugin packaging artifacts", () => {
     const manifest = readJson(".codex-plugin/plugin.json");
     const mcpConfig = readJson(".mcp.json");
-    const hooksConfig = readJson("hooks/hooks.json");
 
     expect(validatePluginManifest(manifest)).toEqual(buildPluginManifest({
       packageName: "codex-project-memory",
@@ -30,7 +28,6 @@ describe("plugin static artifacts", () => {
       command: "node",
       args: ["dist/mcp/server.js"]
     }));
-    expect(hooksConfig).toEqual(buildHooksConfig());
     expect(validatePluginArtifacts(root)).toEqual({ ok: true, missing: [], warnings: [] });
   });
 
@@ -44,6 +41,8 @@ describe("plugin static artifacts", () => {
     expect(skill).toContain("memory.head");
     expect(skill).toContain("memory.query");
     expect(skill).toContain("memory.duplicates");
+    expect(skill).toContain("Supported lifecycle");
+    expect(skill).toContain("implicit skill policy");
     expect(skill).toContain("Do not read `.codex/memory/memory.db` directly");
     expect(skill).not.toContain("AccessService");
   });

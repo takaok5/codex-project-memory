@@ -1,6 +1,6 @@
 # Codex Project Memory Plugin — contratti CLI `pmem` v0.1
 
-**Stato:** contratto CLI raffinato global-pass5 autonomous-ready, allineato a funzioni, data model, MCP, renderer, agenti/hook e test.  
+**Stato:** contratto CLI raffinato global-pass5 autonomous-ready, allineato a funzioni, data model, MCP, renderer, agenti/lifecycle e test.
 **Marker:** `PMEM06-GLOBAL-PASS5-20260613`.  
 **Binario:** `pmem` oppure `node dist/cli/pmem.js`.  
 **Autorità:** `01_EXECUTION_PLAN_v0.1_CONSOLIDATED.md` resta fonte operativa primaria; `04_FUNCTION_CONTRACTS.md` vincola tipi/funzioni; questo documento vincola comandi CLI, flag, output, exit code e comportamento utente.
@@ -17,7 +17,7 @@
 6. `pmem render` e `pmem refresh` non falliscono se export PNG fallisce: ritornano warning `png_export_failed`.
 7. `validate` e `summarize` non sono comandi v0.1: non devono essere implementati né documentati come opzionali.
 8. `pmem agents install/list` sono supportati ma restano fuori dalla core path runtime: installano/leggono template subagenti opzionali e non sono richiesti da index/query/render.
-9. `pmem refresh` è changed-only per default; non introduce un full-scan implicito da hook o comandi ad alto livello.
+9. `pmem refresh` è changed-only per default; non introduce un full-scan implicito da comandi ad alto livello.
 10. Nessun comando CLI modifica codice sorgente del repository target nella v0.1.
 
 ---
@@ -100,7 +100,7 @@ Ogni comando supporta:
 --help
 ```
 
-`--json` è obbligatorio per uso da hook, MCP wrapper o automazioni. In modalità `--json`, stdout contiene un solo JSON compatto e nessuna prosa.
+`--json` è obbligatorio per uso da MCP wrapper o automazioni. In modalità `--json`, stdout contiene un solo JSON compatto e nessuna prosa.
 
 La modalità human-readable è ammessa solo per terminale interattivo e deve restare breve.
 
@@ -131,7 +131,7 @@ Regole:
 | Exit code | Significato | Casi |
 |---:|---|---|
 | `0` | Successo | `ok=true`, inclusi warning non fatali |
-| `1` | Errore input/operativo | `INVALID_INPUT`, `VALIDATION_ERROR`, `ALREADY_EXISTS`, `CONFIG_ERROR`, `FS_ERROR`, `DB_ERROR`, `INDEX_ERROR`, `RENDER_ERROR`, `AGENT_ERROR`, `MCP_ERROR`, `HOOK_ERROR`, `SAFETY_ERROR`, `STATE_ERROR`, `TEMPLATE_ERROR`, `INTERNAL_ERROR` |
+| `1` | Errore input/operativo | `INVALID_INPUT`, `VALIDATION_ERROR`, `ALREADY_EXISTS`, `CONFIG_ERROR`, `FS_ERROR`, `DB_ERROR`, `INDEX_ERROR`, `RENDER_ERROR`, `AGENT_ERROR`, `MCP_ERROR`, `SAFETY_ERROR`, `STATE_ERROR`, `TEMPLATE_ERROR`, `INTERNAL_ERROR` |
 | `2` | Prerequisito o risorsa memoria mancante | `NOT_INITIALIZED`, `FRAME_NOT_FOUND`, DB/config/frame richiesti ma assenti |
 
 `pmem doctor` e `pmem head` sono eccezioni: devono poter descrivere `not_initialized` con `ok=true` e exit code `0`, salvo errore CLI interno.
@@ -143,7 +143,7 @@ Regole:
 | `--json` | JSON compatto su stdout | JSON compatto su stdout |
 | human | testo breve su stdout | messaggio breve su stderr |
 
-Gli hook non devono mai invocare comandi CLI in modalità human-readable.
+Il lifecycle supportato deve usare MCP tools o CLI `--json`, mai output human-readable per automazioni.
 
 ### 2.5 Path e contenuti
 
@@ -734,7 +734,7 @@ Corrupt DB/config viene rappresentato come `status="error"` quando possibile. `o
 
 ### Acceptance
 
-`pmem head --json` deve essere adatto a hook leggeri e non deve avere side effect.
+`pmem head --json` deve essere adatto a controlli leggeri e non deve avere side effect.
 
 ---
 
@@ -997,7 +997,7 @@ Con `--no-render`:
 ### Invarianti
 
 - Default changed-only.
-- Non fa full scan pesante dagli hook.
+- Non fa full scan pesante da lifecycle implicito.
 - PNG failure non è fatale.
 - File cancellati vengono rimossi via hard delete cascade.
 - Se render viene saltato, lo stato può diventare `stale` per segnalare visual frame non aggiornato.
@@ -1019,7 +1019,7 @@ Con `--no-render`:
 - file cancellato rimosso;
 - PNG failure warning non fatale;
 - `--no-render` produce `render_skipped` e status `stale`;
-- hook-style changed-only non full scan.
+- lifecycle changed-only, non full scan.
 
 ### Acceptance
 
@@ -1331,7 +1331,6 @@ INDEX_ERROR
 RENDER_ERROR
 AGENT_ERROR
 MCP_ERROR
-HOOK_ERROR
 SAFETY_ERROR
 STATE_ERROR
 FRAME_NOT_FOUND
@@ -1356,7 +1355,6 @@ Nessun altro codice può essere emesso dal CLI v0.1.
 | `RENDER_ERROR` | true |
 | `AGENT_ERROR` | true |
 | `MCP_ERROR` | true |
-| `HOOK_ERROR` | true |
 | `SAFETY_ERROR` | false |
 | `STATE_ERROR` | true |
 | `FRAME_NOT_FOUND` | true |
@@ -1387,7 +1385,7 @@ Regole:
 - massimo poche righe per default;
 - suggerimenti comando ammessi solo se brevi;
 - errori human-readable su stderr;
-- mai usare output human-readable da MCP o hook;
+- mai usare output human-readable da MCP o automazioni;
 - mai stampare stack trace salvo eventuale modalità dev non documentata in v0.1.
 
 ---
@@ -1444,7 +1442,7 @@ La CLI è accettabile solo se:
 |---|---|
 | `07_MCP_TOOL_CONTRACTS.md` | MCP usa tipi coerenti e `visualFrame`/`frame` come `{ svg, png, map }` con `png: string \| null`; error mapping solo nel server MCP. |
 | `08_RENDERER_VISUAL_CONTRACT.md` | `current.png` e `frames/*.png` sono opzionali; esempi usano `png: null`. |
-| `09_AGENTS_AND_HOOKS_CONTRACT.md` | Opzioni `query`, `duplicates`, `refresh`, HookOutput e loop guard sono allineati. |
+| `09_AGENTS_AND_HOOKS_CONTRACT.md` | Opzioni `query`, `duplicates`, `refresh` e lifecycle skill/MCP sono allineati. |
 | `10_TEST_PLAN_AND_ACCEPTANCE.md` | Test CLI coprono exit code, no `validate/summarize`, PNG nullable e doctor schema checks. |
 | `11_CODEX_IMPLEMENTATION_PROMPTS.md` | Prompt P0/P2/P4/P5/P7 usano il CLI contract global-pass5 autonomous-ready. |
 | `12_DEMO_SCENARIO.md` | Demo non richiede `current.png` obbligatorio e accetta `png_export_failed`. |

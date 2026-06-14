@@ -117,16 +117,15 @@ Do:
 - .mcp.json pointing to dist/mcp/server.js over stdio
 - skills/repo-memory/SKILL.md
 - skills/repo-memory/agents/openai.yaml
-- hooks/hooks.json placeholder pointing to future dist hooks, no hook logic yet
 - assets placeholder files if needed
-- README install/dev/trust section
+- README install/dev/supported lifecycle section
 
 Do not:
 - implement scanner
 - implement SQLite schema beyond compile-safe placeholder imports
 - implement renderer
 - implement MCP tools beyond compile-safe placeholder if needed
-- implement hook behavior
+- implement unsupported plugin hook behavior
 - add commands not listed in docs/06_CLI_CONTRACTS.md
 
 Validation:
@@ -371,42 +370,39 @@ Validation:
 ## Pass 7 — P7 + P8
 
 ```text
-Implement P7 hook bundle and P8 optional Codex subagent templates.
+Implement P7 supported lifecycle and P8 optional Codex subagent templates.
 
 Read first:
 - docs/04_FUNCTION_CONTRACTS.md P7/P8 rows
-- docs/09_AGENTS_AND_HOOKS_CONTRACT.md sections 3-10
+- docs/09_AGENTS_AND_HOOKS_CONTRACT.md agent/lifecycle sections
 - docs/06_CLI_CONTRACTS.md agents install/list sections
 - docs/10_TEST_PLAN_AND_ACCEPTANCE.md P7/P8
 
 Do:
-- hooks/hooks.json points to dist/hooks/*.js
-- shared hook stdin JSON parser returning HookInputResult
-- hook JSON writer returning HookOutput only
-- user-prompt-submit hook: lightweight state check only
-- post-tool-use hook: mark dirty on changed source/config files
-- stop hook: refresh changed-only only if dirty/config enabled/under limit
-- stop hook loop guard env PMEM_HOOK_RUNNING
-- stop hook lock .codex/memory/cache/hook-refresh.lock with TTL 5 minutes
-- subagent-stop hook: parse structured output and log/warn
+- skills/repo-memory/SKILL.md documents supported lifecycle mapping
+- skills/repo-memory/agents/openai.yaml sets allow_implicit_invocation=true
+- agent YAML declares exactly memory.head/query/duplicates/frame/refresh/diff dependencies
+- lifecycle maps prompt start to memory.head
+- lifecycle maps implementation intent to memory.query
+- lifecycle maps new artifact intent to memory.duplicates
+- lifecycle maps source-change closeout to memory.refresh changedOnly=true render=true
+- lifecycle maps final review to memory.diff when useful
 - templates/agents/*.toml with read-only instructions
 - pmem agents install --scope project
 - pmem agents list
-- README trust/review docs
+- README supported lifecycle docs
 
 Do not:
-- run heavy scan in UserPromptSubmit
-- create Stop loops
+- add unsupported plugin-declared hooks
 - make subagents mandatory
 - let retriever/duplicate agents edit files
-- write plain text to hook stdout
-- mark .codex/memory changes as dirty source changes
+- bypass the six MCP tools for lifecycle actions
 
 Validation:
 - npm run build
 - npm test
-- hooks handle empty stdin and invalid JSON
-- Stop env guard and lock guard both pass
+- plugin validator accepts manifest, skill and agent YAML
+- skill docs include supported lifecycle replacement
 - agents install creates files and does not overwrite without --force
 - subagent templates are read-only and MCP-first
 ```
@@ -425,7 +421,7 @@ Read first:
 
 Do:
 - create test/fixtures/nest-basic
-- complete tests for store, scanner, AST, renderer, agents, MCP tools, hooks
+- complete tests for store, scanner, AST, renderer, agents, MCP tools, lifecycle artifacts
 - create demo walkthrough/script
 - ensure all acceptance commands pass
 - verify current.svg/current.map.json exist

@@ -39,9 +39,9 @@ pmem head --json
 
 Use `.mcp.json` with server name `project-memory` and command `node dist/mcp/server.js`.
 
-## Hook trust
+## Supported project lifecycle
 
-The plugin includes hook definitions in `hooks/hooks.json`. Review the commands before enabling them. Hooks are conservative: prompt hooks do not scan/index/render, Stop uses a loop guard, and all hook output is JSON-only.
+Codex app plugin validation does not currently support plugin-declared hooks. The plugin uses a supported replacement: implicit skill invocation plus MCP tools. On project work, Codex should call `memory.head`, use `memory.query` before edits, use `memory.duplicates` before new artifacts, and call `memory.refresh` after source changes.
 
 ## Duplicate guard
 

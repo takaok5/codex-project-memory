@@ -12,7 +12,7 @@
 - JSON statici devono essere parseable e compatti o pretty deterministici.
 - Non aggiungere campi non documentati salvo aggiornamento di `16_PUBLIC_SCHEMAS.md`.
 - Non scaricare asset remoti.
-- Gli hook sono installabili solo dopo review/trust utente.
+- Il lifecycle del plugin usa solo primitive supportate da Codex app: skill implicita e tool MCP.
 - I subagenti sono opzionali, read-only e mai core path.
 
 ---
@@ -153,7 +153,7 @@ File: `.codex-plugin/plugin.json`
 {
   "name": "codex-project-memory",
   "version": "0.1.0",
-  "description": "Local repository memory for Codex with SQLite, deterministic frames, MCP tools and conservative hooks.",
+  "description": "Local repository memory for Codex with SQLite, deterministic frames, MCP tools and an implicit skill lifecycle.",
   "author": {
     "name": "Project Memory Maintainers"
   },
@@ -163,10 +163,10 @@ File: `.codex-plugin/plugin.json`
   "interface": {
     "displayName": "Codex Project Memory",
     "shortDescription": "Local repository memory for Codex.",
-    "longDescription": "Indexes repository structure into local SQLite, exposes compact MCP tools, renders deterministic SVG maps and provides conservative hooks.",
+    "longDescription": "Indexes repository structure into local SQLite, exposes compact MCP tools, renders deterministic SVG maps and uses Codex-supported implicit skill invocation as the project lifecycle.",
     "developerName": "Project Memory Maintainers",
     "category": "Productivity",
-    "capabilities": ["MCP", "CLI", "Hooks"],
+    "capabilities": ["MCP", "CLI", "Implicit Skill"],
     "defaultPrompt": [
       "Query project memory before implementing.",
       "Check duplicate risk for a new service.",
@@ -188,7 +188,7 @@ version == package.json version
 skills == "./skills/"
 mcpServers == "./.mcp.json"
 asset paths are relative and inside plugin archive
-hooks are kept in hooks/hooks.json but not declared in plugin.json because Codex app validation rejects hooks in v0.1 packaging
+no hooks field; lifecycle is provided by implicit skill policy plus MCP tools
 ```
 
 ---
@@ -219,64 +219,27 @@ no HTTP transport fields
 
 ---
 
-## 8. `hooks/hooks.json`
+## 8. Supported lifecycle replacement
 
-File: `hooks/hooks.json`
+Codex app plugin validation does not currently accept plugin-declared hooks. Do not ship a `hooks` field in `.codex-plugin/plugin.json` and do not require `hooks/hooks.json` as a plugin artifact.
 
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${PLUGIN_ROOT}/dist/hooks/user-prompt-submit.js"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${PLUGIN_ROOT}/dist/hooks/post-tool-use.js"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${PLUGIN_ROOT}/dist/hooks/stop.js"
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node ${PLUGIN_ROOT}/dist/hooks/subagent-stop.js"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-Validation:
+The supported replacement is:
 
 ```text
-JSON parse ok
-all 4 hook names present
-all commands point to dist/hooks/*.js
-no hook command mutates source directly
+skills/repo-memory/SKILL.md contains lifecycle instructions
+skills/repo-memory/agents/openai.yaml sets policy.allow_implicit_invocation=true
+skills/repo-memory/agents/openai.yaml declares all six memory.* MCP tools as dependencies
+```
+
+Lifecycle mapping:
+
+```text
+Prompt start -> memory.head
+Implementation intent -> memory.query
+New artifact intent -> memory.duplicates
+After source changes -> memory.refresh changedOnly=true render=true
+Visual orientation -> memory.frame
+Review/closeout -> memory.diff
 ```
 
 ---
@@ -305,6 +268,17 @@ Use this skill when working in a repository that has Codex Project Memory instal
 6. Use `memory.frame` when a visual frame helps locate modules or risks.
 7. After changes, use `memory.refresh` or `pmem refresh --changed-only --json` when appropriate.
 
+## Supported lifecycle
+
+Codex app plugin validation does not currently accept plugin-declared hooks. Use this implicit skill plus MCP tools as the supported project lifecycle:
+
+- Prompt start: call `memory.head` before planning or broad repository search.
+- Implementation intent: call `memory.query` with the user request before editing.
+- New artifact intent: call `memory.duplicates` before creating services, controllers, DTOs, routes, tables, modules, repositories, adapters, jobs or utilities.
+- After source changes: call `memory.refresh` with `changedOnly: true`, `render: true` unless the user asks not to refresh.
+- Visual orientation: call `memory.frame` instead of opening generated files directly.
+- Review/closeout: call `memory.diff` when a compact memory delta is useful.
+
 ## Hard rules
 
 - Do not read `.codex/memory/memory.db` directly.
@@ -312,7 +286,7 @@ Use this skill when working in a repository that has Codex Project Memory instal
 - Do not create duplicate artifacts when `memory.duplicates` returns high risk.
 - Do not rely on PNG existing; SVG and map JSON are the primary frame artifacts.
 - Do not treat optional subagents as required runtime.
-- Do not modify source code from hooks or memory tools.
+- Do not modify source code from memory tools.
 
 ## Useful commands
 
@@ -327,7 +301,7 @@ pmem diff --json
 
 ## Trust note
 
-Hook execution must be reviewed and trusted by the user before activation. Hooks are designed to be conservative, no-op safe and non-invasive.
+This plugin does not install lifecycle hooks through `.codex-plugin/plugin.json`. The supported lifecycle is the implicit skill policy above plus the six MCP tools exposed by `project-memory`.
 ````
 
 Validation:
@@ -336,7 +310,7 @@ Validation:
 starts with YAML frontmatter
 mentions memory.head, memory.query, memory.duplicates
 states do not read memory.db directly
-states hooks require trust/review
+states supported lifecycle replacement
 contains no project-specific memory facts
 ```
 
@@ -412,9 +386,9 @@ pmem head --json
 
 Use `.mcp.json` with server name `project-memory` and command `node dist/mcp/server.js`.
 
-## Hook trust
+## Supported project lifecycle
 
-The plugin includes hook definitions in `hooks/hooks.json`. Review the commands before enabling them. Hooks are conservative: prompt hooks do not scan/index/render, Stop uses a loop guard, and all hook output is JSON-only.
+Codex app plugin validation does not currently support plugin-declared hooks. The plugin uses a supported replacement: implicit skill invocation plus MCP tools. On project work, Codex should call `memory.head`, use `memory.query` before edits, use `memory.duplicates` before new artifacts, and call `memory.refresh` after source changes.
 
 ## Duplicate guard
 

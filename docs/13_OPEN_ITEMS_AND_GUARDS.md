@@ -24,7 +24,7 @@ Questo documento raccoglie ciò che è intenzionalmente rinviato o da verificare
 | Subagenti Codex opzionali/read-only | chiusa |
 | No embeddings/vector DB | chiusa |
 | No LLM obbligatorio nella core path | chiusa |
-| Hook conservativi con loop guard | chiusa |
+| Lifecycle supportato via skill+MCP | chiusa |
 | MCP come interfaccia operativa Codex | chiusa |
 | Nessun comando modifica codice sorgente target | chiusa |
 | Default autonomi package/toolchain di `01` | chiusa |
@@ -58,7 +58,7 @@ Codex deve fermarsi e non implementare se sta per aggiungere:
 - chiamate modello obbligatorie;
 - dashboard web;
 - supporto Python/Java/C#/Go/Rust;
-- scansioni automatiche pesanti da hook;
+- scansioni automatiche pesanti su prompt start;
 - scrittura codice da subagenti read-only;
 - immagini AI generate liberamente;
 - plugin marketplace remoto definitivo;
@@ -75,18 +75,16 @@ Codex deve fermarsi e non implementare se sta per aggiungere:
 
 ## 4. Compatibilità e trust
 
-Possibile area fragile: formati plugin/hook/subagent possono evolvere.
+Possibile area fragile: formati plugin/skill/subagent possono evolvere.
 
 Mitigazione v0.1:
 
 - manifest e template isolati;
 - `pmem doctor` controlla file attesi;
-- README indica che hook devono essere review/trusted;
+- README indica il lifecycle supportato skill+MCP;
 - test non assumono marketplace remoto;
-- path `${PLUGIN_ROOT}` centralizzati in pochi file;
 - MCP stdio isolato da CLI human output;
 - nessun output pubblico contiene path assoluti;
-- hook disattivabili via config;
 - subagenti non richiesti dal runtime.
 
 ---

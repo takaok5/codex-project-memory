@@ -87,7 +87,7 @@ Regole di completamento per ticket:
 | PMEM-003 | Manifest plugin | `.codex-plugin/plugin.json` | JSON valido, path relativi |
 | PMEM-004 | MCP config | `.mcp.json` | stdio, punta a `dist/mcp/server.js` |
 | PMEM-005 | Skill skeleton | `skills/repo-memory/SKILL.md` | workflow corretto, no memoria progetto |
-| PMEM-006 | Assets/README/hooks placeholder | asset placeholder, README install/trust, hooks placeholder | path coerenti |
+| PMEM-006 | Assets/README/lifecycle docs | asset placeholder, README install/lifecycle | path coerenti |
 
 ### EPIC B — Runtime e store
 
@@ -158,15 +158,15 @@ Regole di completamento per ticket:
 | PMEM-057 | `memory.diff` | `tools/diff.ts` | snapshot/file diff minimo |
 | PMEM-058 | MCP error handling | shared errors/server mapper | no crash, no stdout prose |
 
-### EPIC G — Hooks and subagents
+### EPIC G — Supported lifecycle and subagents
 
 | Ticket | Titolo | Output | Gate |
 |---|---|---|---|
-| PMEM-060 | Hook config | `hooks/hooks.json` | punta a dist hooks |
-| PMEM-061 | UserPromptSubmit | hook script | no scan/index/render |
-| PMEM-062 | PostToolUse | hook script | marca dirty, ignora memory dir |
-| PMEM-063 | Stop | hook script | refresh sicuro + loop guard |
-| PMEM-064 | SubagentStop | hook script | log/warning strutturato |
+| PMEM-060 | Skill lifecycle | `skills/repo-memory/SKILL.md` | mapping lifecycle supportato |
+| PMEM-061 | Implicit invocation | `skills/repo-memory/agents/openai.yaml` | `allow_implicit_invocation=true` |
+| PMEM-062 | MCP dependencies | agent YAML | sei tool memory.* dichiarati |
+| PMEM-063 | Refresh closeout | `memory.refresh` | changed-only/render default |
+| PMEM-064 | Diff closeout | `memory.diff` | delta compatto |
 | PMEM-065 | Agent templates | TOML templates | read-only, MCP-first |
 | PMEM-066 | Agents install/list | CLI commands | no overwrite senza force |
 | PMEM-067 | Trust docs | README | istruzioni chiare |

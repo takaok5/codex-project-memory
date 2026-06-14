@@ -160,7 +160,7 @@ CREATE TABLE IF NOT EXISTS warnings (
   symbol_id INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
   message TEXT NOT NULL,
   recommendation TEXT,
-  source TEXT NOT NULL DEFAULT 'inferred' CHECK (source IN ('parser', 'indexer', 'renderer', 'agent', 'hook', 'mcp', 'config', 'inferred')),
+  source TEXT NOT NULL DEFAULT 'inferred' CHECK (source IN ('parser', 'indexer', 'renderer', 'agent', 'mcp', 'config', 'inferred')),
   confidence REAL NOT NULL DEFAULT 1.0 CHECK (confidence >= 0.0 AND confidence <= 1.0),
   fingerprint TEXT NOT NULL,
   created_at TEXT NOT NULL,
@@ -277,9 +277,9 @@ Nessun indice v0.1 deve richiedere estensioni SQLite esterne.
 |---|---|---|---|---|
 | `schema_version` | `1` | `ensureSchema` | `doctor`, `head`, runtime | `null` |
 | `project_name` | nome progetto | `init`, config loader | `head`, renderer, MCP | `null` |
-| `memory_status` | `not_initialized`/`initializing`/`fresh`/`stale`/`dirty`/`error` | init/index/render/refresh/hooks | tutti | `not_initialized` |
-| `memory_dirty` | `true`/`false` | hooks/index/refresh | hooks/head/doctor | `false` |
-| `dirty_reason` | stringa compatta | hooks/index/refresh | head/doctor | `""` |
+| `memory_status` | `not_initialized`/`initializing`/`fresh`/`stale`/`dirty`/`error` | init/index/render/refresh | tutti | `not_initialized` |
+| `memory_dirty` | `true`/`false` | index/refresh | head/doctor | `false` |
+| `dirty_reason` | stringa compatta | index/refresh | head/doctor | `""` |
 | `last_indexed_at` | ISO timestamp | index/refresh | head/doctor/MCP | `null` |
 | `last_rendered_at` | ISO timestamp | render/refresh | head/frame/MCP | `null` |
 | `config_hash` | hash config canonico | init/index/doctor | changed-only | `null` -> reindex |
@@ -419,7 +419,7 @@ Fingerprint minimo:
 sha256(warning_type + "\n" + source + "\n" + file_path + "\n" + coalesce(symbol_fq_name, "") + "\n" + normalized_message)
 ```
 
-`addWarning()` è riservato a warning globali/run-scoped, come `png_export_failed`, `hook_refresh_skipped`, `legacy_table_features`.
+`addWarning()` è riservato a warning globali/run-scoped, come `png_export_failed` e `legacy_table_features`.
 
 ---
 
@@ -470,8 +470,6 @@ Algoritmo minimo:
 | `png_export_failed` | `renderer` | `warning` | PNG non generato ma SVG/map validi |
 | `frame_stale` | `renderer` | `info` | frame non aggiornato rispetto a source hash |
 | `duplicate_high_risk` | `agent` | `warning` | duplicate guard trova match alto |
-| `hook_loop_guard_env` | `hook` | `info` | refresh hook bloccato da env guard |
-| `hook_loop_guard_lock` | `hook` | `info` | refresh hook bloccato da lock file |
 | `config_deprecated_key` | `config` | `info` | chiave config ignorata/legacy |
 | `legacy_table_features` | `config` | `info` | DB legacy contiene tabella fuori v0.1 |
 

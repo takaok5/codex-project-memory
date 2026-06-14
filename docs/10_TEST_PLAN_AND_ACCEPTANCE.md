@@ -9,7 +9,7 @@
 
 1. Ogni pass termina con `npm run build` e `npm test`.
 2. I test devono usare fixture temporanee e non scrivere fuori dalla root fixture.
-3. Output JSON CLI/MCP/hook devono essere validati come shape, non solo come stringhe.
+3. Output JSON CLI/MCP/generated devono essere validati come shape, non solo come stringhe.
 4. Tutti i path pubblici attesi nei test sono relativi POSIX.
 5. `current.svg` e `current.map.json` sono obbligatori nei test render; `current.png` è opzionale.
 6. PNG failure è successo con warning `png_export_failed` se SVG/map sono validi.
@@ -25,7 +25,7 @@ Unit test
   shared, config, path, parser helper, repository, scoring, renderer model
 
 Integration test
-  init, DB schema, scan/index fixture, render, CLI JSON, MCP handlers, hooks
+  init, DB schema, scan/index fixture, render, CLI JSON, MCP handlers, lifecycle skill
 
 End-to-end demo
   fixture nest-basic con query/duplicates/refresh/diff
@@ -77,7 +77,7 @@ Test:
 - manifest JSON valido;
 - `.mcp.json` valido e stdio-only;
 - skill non contiene memoria progetto;
-- hook config contiene solo comandi verso `dist/hooks/*.js`;
+- skill lifecycle contiene mapping supportato e agent YAML abilita invocazione implicita;
 - asset placeholder presenti se documentati.
 
 ### P2
@@ -161,16 +161,11 @@ Test:
 
 Test:
 
-- hook input vuoto non crasha;
-- hook input JSON invalido -> no-op warning;
-- hook output JSON valido;
-- UserPromptSubmit non fa scan/index/render;
-- PostToolUse marca dirty solo per file repository rilevanti;
-- PostToolUse ignora `.codex/memory/**`;
-- Stop refresh changed-only solo se dirty/config/sotto limite;
-- Stop loop guard env;
-- Stop loop guard lock;
-- SubagentStop registra output strutturato senza side effect codice;
+- skill lifecycle documenta `memory.head/query/duplicates/frame/refresh/diff`;
+- agent YAML contiene `allow_implicit_invocation=true`;
+- agent YAML dichiara esattamente i sei tool MCP v0.1;
+- `memory.refresh` resta changed-only/render default per closeout;
+- nessun hook plugin è richiesto o impacchettato;
 - `pmem agents install` crea TOML read-only;
 - non overwrite senza `--force`;
 - `pmem agents list` è read-only.
@@ -271,7 +266,7 @@ PNG failure emits warning only
 | Test unit/integration | 100% verde |
 | Query context pack | <= maxFiles/maxSymbols/maxWarnings configurati |
 | SVG determinismo | output identico a parità input |
-| Hook crash rate su input vuoto | 0 |
+| Lifecycle artifact validation failure | 0 |
 | PNG failure | non fatale |
 | Duplicate obvious service | high risk + extend existing |
 | Non-init head | nessun crash |
@@ -289,7 +284,7 @@ La v0.1 non è accettabile se:
 - richiede subagenti Codex per funzionare;
 - richiede LLM nella core path;
 - la skill contiene memoria progetto;
-- gli hook fanno scan pesanti su prompt;
+- il lifecycle bypassa la skill/MCP e fa scansioni pesanti su prompt;
 - il renderer usa immagini AI libere o layout random;
 - Codex deve leggere `memory.db` direttamente;
 - `memory.query` restituisce troppi file o codice;
@@ -334,7 +329,7 @@ Per chiudere la v0.1 autonomous-ready, i test devono usare anche:
 14_IMPLEMENTATION_MATRIX.md — file/export/test/gate per pass
 15_STATIC_FILE_TEMPLATES.md — snapshot statici P0/P1/P8
 16_PUBLIC_SCHEMAS.md — validazione output pubblico/config/map/snapshot
-17_GOLDEN_FIXTURES_AND_EXPECTED_OUTPUTS.md — fixture, DB rows, golden CLI/MCP/hook
+17_GOLDEN_FIXTURES_AND_EXPECTED_OUTPUTS.md — fixture, DB rows, golden CLI/MCP/lifecycle
 ```
 
 Un test che confronta output pubblico deve validare lo schema di `16`; un test demo deve usare gli attesi di `17`.

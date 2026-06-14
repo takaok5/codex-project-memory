@@ -8,8 +8,8 @@ import { cmdHead } from "../../src/cli/commands/head.js";
 import { cmdIndex } from "../../src/cli/commands/index.js";
 import { cmdInit } from "../../src/cli/commands/init.js";
 import { cmdQuery } from "../../src/cli/commands/query.js";
+import { cmdRefresh } from "../../src/cli/commands/refresh.js";
 import { cmdRender } from "../../src/cli/commands/render.js";
-import { runPostToolUseHook } from "../../src/hooks/post-tool-use.js";
 import { handleMemoryHead } from "../../src/mcp/tools/head.js";
 import { getMemoryPaths } from "../../src/runtime/memory-paths.js";
 import { openMemoryDb } from "../../src/store/sqlite.js";
@@ -28,7 +28,7 @@ describe("public output path audit", () => {
       outputs.push(await cmdDuplicates({ cwd: root, kind: "service", moduleId: "access", proposedName: "AccessValidationService", intent: "AccessValidationService / verifica diritto accesso" }));
       outputs.push(await cmdDiff({ cwd: root }));
       outputs.push(await handleMemoryHead({}, { cwd: root }));
-      outputs.push(await runPostToolUseHook({ changedFiles: ["src/access/access.service.ts"] }, root));
+      outputs.push(await cmdRefresh({ cwd: root, render: false, reason: "path-audit" }));
 
       const paths = getMemoryPaths(root);
       for (const file of listJsonFiles(paths.generatedDirAbs)) outputs.push(JSON.parse(readFileSync(file, "utf8")));

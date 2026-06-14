@@ -1,8 +1,8 @@
 # Codex Project Memory Plugin — public schemas v0.1
 
-**Stato:** schema pubblici autoritativi per config, CLI, MCP, hook, renderer, snapshot, errori e warning.  
+**Stato:** schema pubblici autoritativi per config, CLI, MCP, renderer, snapshot, errori e warning.
 **Scopo:** eliminare output “simili ma non identici”.  
-**Regola:** CLI/MCP/hook/generated/map/snapshot devono validare contro questo documento. Esempi in `06`, `07`, `08`, `09` e `12` sono illustrativi se divergono da questo file.
+**Regola:** CLI/MCP/generated/map/snapshot devono validare contro questo documento. Esempi in `06`, `07`, `08`, `09` e `12` sono illustrativi se divergono da questo file.
 
 ---
 
@@ -25,7 +25,6 @@ Score = number finite, 0..1 se similarity, altrimenti score intero/decimale docu
 |---|---|
 | CLI `CliResult` | vietati al top-level; `data` può avere solo campi dello schema comando |
 | MCP tool output | vietati salvo future schema version documentata |
-| Hook output | vietati |
 | Config | chiavi sconosciute vietate; chiavi legacy possono generare `config_deprecated_key` solo se documentate |
 | Generated JSON | vietati nei file canonici salvo bump schema |
 | Frame map | vietati al top-level; `items[].metadata` ammesso solo se oggetto compatto senza path assoluti |
@@ -66,7 +65,7 @@ type MemoryStatus = "not_initialized" | "initializing" | "fresh" | "stale" | "di
 type MemoryEvent = "init_started" | "init_completed" | "index_started" | "index_completed" | "render_completed" | "mark_dirty" | "mark_error" | "doctor_ok";
 type LanguageKind = "typescript" | "javascript";
 type WarningSeverity = "info" | "warning" | "critical";
-type WarningSource = "parser" | "indexer" | "renderer" | "agent" | "hook" | "mcp" | "config" | "inferred";
+type WarningSource = "parser" | "indexer" | "renderer" | "agent" | "mcp" | "config" | "inferred";
 type RiskLevel = "low" | "medium" | "high";
 type DuplicateVerdict = "create_new_artifact" | "extend_existing_artifact" | "needs_human_review";
 type FrameName = "current" | "overview" | "modules" | "duplicates" | "risks";
@@ -117,7 +116,6 @@ type PmemErrorCode =
   | "RENDER_ERROR"
   | "AGENT_ERROR"
   | "MCP_ERROR"
-  | "HOOK_ERROR"
   | "SAFETY_ERROR"
   | "STATE_ERROR"
   | "FRAME_NOT_FOUND"
@@ -140,7 +138,7 @@ Default recoverability:
 
 | Code | recoverable |
 |---|---:|
-| `INVALID_INPUT`, `VALIDATION_ERROR`, `NOT_INITIALIZED`, `ALREADY_EXISTS`, `CONFIG_ERROR`, `FS_ERROR`, `INDEX_ERROR`, `RENDER_ERROR`, `AGENT_ERROR`, `MCP_ERROR`, `HOOK_ERROR`, `STATE_ERROR`, `FRAME_NOT_FOUND`, `TEMPLATE_ERROR` | true |
+| `INVALID_INPUT`, `VALIDATION_ERROR`, `NOT_INITIALIZED`, `ALREADY_EXISTS`, `CONFIG_ERROR`, `FS_ERROR`, `INDEX_ERROR`, `RENDER_ERROR`, `AGENT_ERROR`, `MCP_ERROR`, `STATE_ERROR`, `FRAME_NOT_FOUND`, `TEMPLATE_ERROR` | true |
 | `DB_ERROR`, `SAFETY_ERROR`, `INTERNAL_ERROR` | false |
 
 Default message e next command:
@@ -173,22 +171,17 @@ Questi valori sono ammessi in `warnings.warning_type`:
 | `frame_stale` | `renderer` | `info` | global/run warning |
 | `duplicate_high_risk` | `agent` | `warning` | duplicate run/candidate warning |
 | `architecture_rule_violation` | `agent` | `warning` | agent/config warning |
-| `hook_loop_guard_env` | `hook` | `info` | hook run warning opzionale |
-| `hook_loop_guard_lock` | `hook` | `info` | hook run warning opzionale |
-| `hook_event_unrecognized` | `hook` | `info` | hook run warning opzionale |
-| `hook_input_invalid` | `hook` | `warning` | hook run warning opzionale |
 | `config_deprecated_key` | `config` | `info` | config warning |
 | `legacy_table_features` | `config` | `info` | doctor/config warning |
 
 ### 4.2 Warning transienti di output
 
-Queste stringhe possono apparire in `CliResult.warnings`, output MCP o hook, ma non vanno inserite automaticamente nella tabella `warnings` salvo mapping esplicito sopra:
+Queste stringhe possono apparire in `CliResult.warnings` o output MCP, ma non vanno inserite automaticamente nella tabella `warnings` salvo mapping esplicito sopra:
 
 ```text
 render_skipped
 png_missing
 snapshot_missing
-hook_refresh_skipped
 config_missing
 memory_dirty
 memory_stale
@@ -245,11 +238,6 @@ interface ProjectMemoryConfig {
     maxSymbols: number;             // integer 1..40
     maxWarnings: number;            // integer 0..20
   };
-  hooks: {
-    enabled: boolean;
-    autoRefreshOnStop: boolean;
-    maxChangedFilesForStopRefresh: number; // integer 0..200
-  };
 }
 ```
 
@@ -285,22 +273,18 @@ interface ProjectMemoryConfig {
     "maxFiles": 8,
     "maxSymbols": 12,
     "maxWarnings": 8
-  },
-  "hooks": {
-    "enabled": true,
-    "autoRefreshOnStop": true,
-    "maxChangedFilesForStopRefresh": 20
   }
 }
 ```
 
 ### 5.3 Merge e validazione
 
-- Config assente: ammessa solo per `doctor`, `head`, `memory.head`, hook leggeri e `agents list/install`.
+- Config assente: ammessa solo per `doctor`, `head`, `memory.head` e `agents list/install`.
 - Config parziale: merge deep con default, poi validazione.
 - `projectName="auto"`: a runtime diventa `package.json.name`, altrimenti basename project root.
 - `scan.exclude` viene sempre forzato a includere `.codex/memory/**`, anche se mancante nel file utente.
 - Chiavi sconosciute: `CONFIG_ERROR`, salvo legacy key documentata come warning `config_deprecated_key`.
+- Legacy `hooks`: se presente da versioni draft precedenti, viene ignorato e non abilita alcun comportamento runtime.
 - `criticalRules` mancante: default `[]`.
 - `modules[].owns`, `mustNot`, `dependencies` mancanti: default `[]`; `riskLevel` default `normal`.
 
@@ -854,44 +838,33 @@ SVG data-pmem-id must equal FrameMap.items[].id for every visible item
 
 ---
 
-## 10. Hook schemas
+## 10. Supported lifecycle schema
 
-### 10.1 Hook output
+Codex app plugin validation does not accept plugin-declared hooks in v0.1 packaging. The lifecycle equivalent is declared through the skill and agent artifacts:
 
-```ts
-interface HookOutput {
-  ok: true;
-  action: "noop" | "additional_context" | "marked_dirty" | "refreshed" | "logged";
-  additionalContext?: string; // max 1200 chars, no code dump
-  warnings: string[];
-}
+```yaml
+policy:
+  allow_implicit_invocation: true
+dependencies:
+  tools:
+    - memory.head
+    - memory.query
+    - memory.duplicates
+    - memory.frame
+    - memory.refresh
+    - memory.diff
 ```
 
-Rules:
+Required lifecycle mapping:
 
 ```text
-hooks never return ok=false in v0.1
-stdout JSON only
-unknown/invalid input -> ok=true action=noop warning hook_input_invalid or hook_event_unrecognized
+Prompt start -> memory.head
+Implementation intent -> memory.query
+New artifact intent -> memory.duplicates
+After source changes -> memory.refresh changedOnly=true render=true
+Visual orientation -> memory.frame
+Review/closeout -> memory.diff
 ```
-
-### 10.2 Hook lock
-
-```ts
-interface HookRefreshLock {
-  createdAt: IsoDateTime;
-  pid: number;
-  reason: "stop-refresh" | string;
-}
-```
-
-Path:
-
-```text
-.codex/memory/cache/hook-refresh.lock
-```
-
-TTL: 5 minutes.
 
 ---
 
@@ -1008,6 +981,6 @@ interface McpConfig {
 }
 ```
 
-`hooks/hooks.json` remains a packaged, reviewable artifact, but v0.1 Codex app packaging does not declare `hooks` inside `.codex-plugin/plugin.json` because current plugin validation rejects that field.
+Plugin-declared hooks are not part of the v0.1 Codex app package because current plugin validation rejects the `hooks` manifest field. The supported lifecycle replacement is `skills/repo-memory/agents/openai.yaml` with `policy.allow_implicit_invocation=true` plus the six MCP tools declared under `dependencies.tools`.
 
 No additional transport fields in v0.1.

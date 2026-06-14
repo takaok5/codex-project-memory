@@ -1,21 +1,21 @@
-# Codex Project Memory Plugin — agenti e hook v0.1
+# Codex Project Memory Plugin — agenti e lifecycle supportato v0.1
 
-**Stato:** contratto agenti/hook raffinato global-pass5 autonomous-ready, allineato a `04`, `06`, `07` e `08`.  
+**Stato:** contratto agenti/lifecycle raffinato global-pass5 autonomous-ready, allineato a `04`, `06`, `07` e `08`.
 **Regola chiave:** micro-agent interni e subagenti Codex opzionali sono due livelli diversi. I micro-agent sono runtime; i subagenti sono template read-only e non sono core path.
 
 ---
 
-## 0. Decisioni vincolanti agenti/hook
+## 0. Decisioni vincolanti agenti/lifecycle
 
 1. I micro-agent in v0.1 sono rule-based e non chiamano modelli esterni.
 2. Il dispatcher valida input e output con schema typed.
 3. Retrieval e duplicate usano scoring deterministico documentato, non euristiche libere.
 4. Nessun agente modifica codice sorgente.
 5. Nessun micro-agent invoca subagenti Codex.
-6. Gli hook sono conservativi: `UserPromptSubmit` non fa scan/index/render.
-7. `Stop` usa loop guard env + lock file.
-8. Hook stdout deve essere solo JSON compatto dove richiesto.
-9. Hook errori/parsing falliti diventano no-op con warning.
+6. Il plugin installabile non dichiara hook: il lifecycle usa skill implicita e MCP tools.
+7. `skills/repo-memory/agents/openai.yaml` deve usare `allow_implicit_invocation=true`.
+8. Il lifecycle deve usare solo i sei tool MCP v0.1.
+9. `memory.refresh` resta changed-only/render di default per closeout.
 10. Subagenti installati in `.codex/agents/` sono read-only e opzionali.
 
 ---
@@ -378,124 +378,50 @@ Do not read memory.db directly.
 
 ---
 
-## 4. Hook bundle
+## 4. Supported lifecycle
 
-Hook config punta a build output:
+Codex app plugin validation does not accept plugin-declared hooks in v0.1 packaging. The supported replacement is the `repo-memory` skill with implicit invocation plus the project-memory MCP tools.
 
-```json
-{
-  "hooks": {
-    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "node ${PLUGIN_ROOT}/dist/hooks/user-prompt-submit.js" }] }],
-    "PostToolUse": [{ "hooks": [{ "type": "command", "command": "node ${PLUGIN_ROOT}/dist/hooks/post-tool-use.js" }] }],
-    "Stop": [{ "hooks": [{ "type": "command", "command": "node ${PLUGIN_ROOT}/dist/hooks/stop.js" }] }],
-    "SubagentStop": [{ "hooks": [{ "type": "command", "command": "node ${PLUGIN_ROOT}/dist/hooks/subagent-stop.js" }] }]
-  }
-}
-```
+Required agent YAML:
 
-Trust rule: installazione hook deve essere documentata e reviewable dall'utente.
-
----
-
-## 5. Hook output canonico
-
-Tutti gli hook ritornano `HookOutput`:
-
-```ts
-interface HookOutput {
-  ok: true;
-  action: "noop" | "additional_context" | "marked_dirty" | "refreshed" | "logged";
-  additionalContext?: string;
-  warnings: string[];
-}
-```
-
-Regole:
-
-- mai `ok:false` dagli hook v0.1;
-- errori diventano `ok:true`, `action:"noop"`, warning compatto;
-- stdout contiene solo JSON;
-- warning non include stack trace o path assoluti.
-
----
-
-## 6. Hook behavior
-
-### `UserPromptSubmit`
-
-```text
-if no memory:
-  additionalContext: suggest pmem init
-if stale/dirty:
-  additionalContext: memory stale/dirty warning + suggest memory.refresh when relevant
-never run scan/index/render
-never open many files
-```
-
-### `PostToolUse`
-
-```text
-inspect changed/written files when available
-ignore .codex/memory/**
-ignore node_modules/dist/build/coverage
-if relevant source/config file changed:
-  set project_state.memory_dirty = true
-  set dirty_reason compactly
-no refresh
-```
-
-### `Stop`
-
-```text
-if PMEM_HOOK_RUNNING=1:
-  no-op warning hook_loop_guard_env
-else if lock exists and not expired:
-  no-op warning hook_loop_guard_lock
-else if dirty and config.hooks.enabled and config.hooks.autoRefreshOnStop and changed files <= maxChangedFilesForStopRefresh:
-  run pmem refresh --changed-only --json with loop guard
-else:
-  no-op
-return valid JSON
-```
-
-### `SubagentStop`
-
-```text
-parse subagent output if structured
-append retrieval log/warning if useful
-never modify source files
-never trigger refresh
+```yaml
+policy:
+  allow_implicit_invocation: true
+dependencies:
+  tools:
+    - memory.head
+    - memory.query
+    - memory.duplicates
+    - memory.frame
+    - memory.refresh
+    - memory.diff
 ```
 
 ---
 
-## 7. Hook loop guard
-
-`Stop` deve usare entrambi:
+## 5. Lifecycle mapping
 
 ```text
-if process.env.PMEM_HOOK_RUNNING === "1" -> no-op warning "hook_loop_guard_env"
-if .codex/memory/cache/hook-refresh.lock exists and not expired -> no-op warning "hook_loop_guard_lock"
-when invoking refresh from Stop, set PMEM_HOOK_RUNNING=1 and create lock with TTL 5 minutes
-cleanup lock best-effort after refresh
+Prompt start -> memory.head
+Implementation intent -> memory.query
+New artifact intent -> memory.duplicates
+After source changes -> memory.refresh changedOnly=true render=true
+Visual orientation -> memory.frame
+Review/closeout -> memory.diff
 ```
-
-Se la lock non è leggibile per errore FS, `Stop` deve preferire no-op sicuro con warning.
 
 ---
 
-## 8. Hook invarianti
+## 6. Lifecycle invarianti
 
-1. Devono accettare input vuoto.
-2. Devono produrre JSON valido dove richiesto.
-3. Non devono produrre plain text in stdout.
-4. Non devono entrare in loop su `Stop`.
-5. Non devono fare full scan pesante su prompt submit.
-6. Devono essere disattivabili via config.
-7. Devono loggare errori senza bloccare flusso normale.
-8. Non devono modificare codice sorgente.
-9. Devono ignorare `.codex/memory/**` come causa di dirty-loop.
-10. Devono essere documentati come elementi da approvare/trustare dopo installazione.
+1. Non richiede hook plugin o campi manifest non supportati.
+2. Usa solo output MCP typed, mai `CliResult` nei tool.
+3. Non modifica codice sorgente dai tool memoria.
+4. Non legge `.codex/memory/memory.db` direttamente.
+5. Non esegue full scan pesanti su prompt start.
+6. `memory.refresh` resta changed-only di default.
+7. PNG resta opzionale; SVG e map JSON sono primari.
+8. Subagenti opzionali restano read-only e MCP-first.
 
 ---
 
@@ -511,17 +437,14 @@ Se la lock non è leggibile per errore FS, `Stop` deve preferire no-op sicuro co
 | Architecture | criticalRules inclusi senza inventare regole |
 | Render agent | delega renderer e propaga warning PNG |
 | Subagent templates | sandbox read-only e MCP-first |
-| Hook input | stdin vuoto/JSON invalido |
-| Hook output | JSON compatto, no stack/path assoluti |
-| UserPromptSubmit | no scan, suggerimento init/dirty |
-| PostToolUse | dirty solo file repo, ignora memory dir |
-| Stop | env guard, lock guard, refresh changed-only |
-| SubagentStop | output strutturato/non strutturato |
+| Lifecycle skill | frontmatter valido, supported lifecycle documentato |
+| Agent YAML | `allow_implicit_invocation=true`, sei tool MCP dichiarati |
+| Lifecycle closeout | `memory.refresh` changed-only/render default |
 | Agents install | no overwrite senza force |
 
 ---
 
-## 10. Acceptance agenti/hook v0.1
+## 10. Acceptance agenti/lifecycle v0.1
 
 Accettabile solo se:
 
@@ -530,8 +453,8 @@ Accettabile solo se:
 3. context pack è compatto e senza codice sorgente;
 4. nessun agente richiede LLM/embedding/subagente;
 5. subagenti sono opzionali, read-only, MCP-first;
-6. hook non crashano con input vuoto o invalido;
-7. `UserPromptSubmit` non fa scan/index/render;
-8. `Stop` non crea loop;
-9. hook sono disattivabili via config;
-10. hook non scrivono testo libero su stdout.
+6. skill lifecycle documenta `memory.head/query/duplicates/frame/refresh/diff`;
+7. agent YAML abilita invocazione implicita;
+8. nessun hook plugin è richiesto o dichiarato;
+9. `memory.refresh` è il closeout supportato dopo modifiche sorgente;
+10. nessun output pubblico contiene path assoluti o dump sorgente.

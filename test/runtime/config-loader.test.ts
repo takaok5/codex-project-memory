@@ -12,7 +12,7 @@ describe("config loader", () => {
       projectName: "demo",
       scan: { include: ["src/**/*", "apps/**/*", "packages/**/*"], maxFileBytes: 524288 },
       render: { png: true, maxModules: 40, maxWarnings: 20 },
-      hooks: { enabled: true, autoRefreshOnStop: true, maxChangedFilesForStopRefresh: 20 }
+      agents: { maxFiles: 8, maxSymbols: 12, maxWarnings: 8 }
     });
   });
 
@@ -33,5 +33,12 @@ describe("config loader", () => {
 
   it("rejects unknown config keys", () => {
     expect(() => validateProjectConfig({ ...defaultProjectConfig("demo"), unknown: true })).toThrow();
+  });
+
+  it("ignores legacy hooks config from earlier plugin drafts", () => {
+    expect(validateProjectConfig({
+      ...defaultProjectConfig("demo"),
+      hooks: { enabled: true, autoRefreshOnStop: true, maxChangedFilesForStopRefresh: 20 }
+    })).not.toHaveProperty("hooks");
   });
 });

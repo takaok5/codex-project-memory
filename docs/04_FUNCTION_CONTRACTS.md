@@ -1,6 +1,6 @@
 # Codex Project Memory Plugin — contratti moduli e funzioni v0.1
 
-**Stato:** contratto funzioni/tipi raffinato global-pass5 autonomous-ready, allineato a data model, CLI, MCP, renderer, agenti/hook e test.  
+**Stato:** contratto funzioni/tipi raffinato global-pass5 autonomous-ready, allineato a data model, CLI, MCP, renderer, agenti/lifecycle e test.
 **Scopo:** impedire a Codex di inventare contratti durante l’implementazione. Ogni modulo, funzione pubblica, tipo condiviso, side effect e boundary di errore deve rispettare questo documento.  
 **Autorità:** `01_EXECUTION_PLAN_v0.1_CONSOLIDATED.md` resta la fonte operativa primaria. Questo file vincola la forma implementativa delle funzioni. Se una funzione non è qui, Codex non deve implementarla senza aggiornare prima questo documento.
 
@@ -9,8 +9,8 @@
 ## 0. Decisioni vincolanti consolidate
 
 1. `toErrorPayload()` restituisce solo `ErrorPayload`, non `{ ok:false, error }`.
-2. `PmemErrorCode` diventa enum unico condiviso da CLI, MCP, hook e agenti.
-3. P1 viene contrattualizzata: manifest plugin, MCP config, skill skeleton, hook config e asset placeholder.
+2. `PmemErrorCode` diventa enum unico condiviso da CLI, MCP e agenti.
+3. P1 viene contrattualizzata: manifest plugin, MCP config, skill skeleton, lifecycle skill e asset placeholder.
 4. I path vengono separati in tre funzioni: normalizzazione separatori, path relativo al progetto, path relativo alla memory root.
 5. Le scritture JSON/SVG/map usano atomic write: temp file + rename.
 6. File cancellati in changed-only v0.1 vengono rimossi con hard delete cascade, non marcati soft-delete.
@@ -20,7 +20,7 @@
 10. `features` resta fuori dal core path v0.1: nessuna funzione obbligatoria lo popola.
 11. PNG è best-effort: SVG e map JSON sono obbligatori; PNG può essere `null` con warning.
 12. `symbol_edges` contiene solo edge risolti con `fromSymbolId` e `toSymbolId` not null; import non risolti diventano warning.
-13. Hook `Stop` usa loop guard esplicito via env + lock file.
+13. Il lifecycle supportato usa skill implicita e i sei tool MCP v0.1.
 14. Agent scoring e duplicate thresholds sono deterministici e documentati.
 
 ---
@@ -35,8 +35,8 @@
 - Tutti i path assoluti possono vivere solo in runtime memory, mai in DB, generated JSON, MCP output o CLI JSON output.
 - Ogni funzione con side effect deve avere test unit/integration mirato.
 - Ogni input esterno deve essere validato con Zod o validatore equivalente locale.
-- Gli output di CLI `--json`, MCP e hook devono essere JSON compatti senza prose libere.
-- `better-sqlite3` può essere sync; funzioni con filesystem async, MCP, hooks e PNG export devono essere async.
+- Gli output di CLI `--json` e MCP devono essere JSON compatti senza prose libere.
+- `better-sqlite3` può essere sync; funzioni con filesystem async, MCP e PNG export devono essere async.
 - Un errore su singolo file non deve bloccare un index completo: genera warning e il run continua, salvo errore DB/config/fs fatale.
 
 ---
@@ -73,7 +73,7 @@ type ArtifactKind =
   | "feature";
 
 type WarningSeverity = "info" | "warning" | "critical";
-type WarningSource = "parser" | "indexer" | "renderer" | "agent" | "hook" | "mcp" | "config" | "inferred";
+type WarningSource = "parser" | "indexer" | "renderer" | "agent" | "mcp" | "config" | "inferred";
 type RiskLevel = "low" | "medium" | "high";
 type DuplicateVerdict = "create_new_artifact" | "extend_existing_artifact" | "needs_human_review";
 type FrameName = "current" | "overview" | "modules" | "duplicates" | "risks";
@@ -92,7 +92,6 @@ type PmemErrorCode =
   | "RENDER_ERROR"
   | "AGENT_ERROR"
   | "MCP_ERROR"
-  | "HOOK_ERROR"
   | "SAFETY_ERROR"
   | "STATE_ERROR"
   | "FRAME_NOT_FOUND"
@@ -150,8 +149,6 @@ interface PluginManifest {
 interface McpConfigOptions { serverName: "project-memory"; command: string; args: string[] }
 interface McpConfig { mcpServers: Record<string, { command: string; args: string[] }> }
 interface SkillDocOptions { pluginName: string; cliCommand: "pmem"; mcpServerName: "project-memory" }
-interface HooksConfigOptions { pluginRootVar?: "${PLUGIN_ROOT}" }
-interface HooksConfig { hooks: JsonObject }
 interface PluginAssetPaths { iconPng: string; logoPng: string }
 interface PluginArtifactValidationResult { ok: boolean; missing: string[]; warnings: string[] }
 interface ResolveContextOptions { cwd?: string; allowMissingConfig?: boolean; openDb?: boolean }
@@ -225,11 +222,6 @@ interface ProjectMemoryConfig {
     maxFiles: number;
     maxSymbols: number;
     maxWarnings: number;
-  };
-  hooks: {
-    enabled: boolean;
-    autoRefreshOnStop: boolean;
-    maxChangedFilesForStopRefresh: number;
   };
 }
 
@@ -371,7 +363,7 @@ interface FrameRecord {
 }
 ```
 
-### 2.3 Agent/MCP/hook types
+### 2.3 Agent/MCP types
 
 ```ts
 interface AgentContext extends RuntimeContext {
@@ -437,18 +429,6 @@ interface DuplicateAgentOutput {
 interface McpToolEnv {
   cwd: string;
   now?: () => string;
-}
-
-interface HookInputResult {
-  event: unknown;
-  warnings: string[];
-}
-
-interface HookOutput {
-  ok: true;
-  action: "noop" | "additional_context" | "marked_dirty" | "refreshed" | "logged";
-  additionalContext?: string;
-  warnings: string[];
 }
 
 // Phase-local public types. These shapes are required because function tables below
@@ -551,7 +531,6 @@ Alcuni nomi compaiono nelle signature di `04` ma la loro shape completa è posse
 | `InitOptions`, `InitOutput`, `DoctorOutput`, `RenderOutput`, ecc. | `06_CLI_CONTRACTS.md` | shape CLI pubblica e opzioni comando |
 | `MemoryHeadOutput`, `MemoryQueryOutput`, `MemoryRefreshOutput`, ecc. | `07_MCP_TOOL_CONTRACTS.md` | shape MCP pubblica |
 | `FrameMap`, `NormalizedGraph`, layout dettagliato | `08_RENDERER_VISUAL_CONTRACT.md` | `04` dà minimo, `08` dà schema renderer completo |
-| hook event payload raw | `09_AGENTS_AND_HOOKS_CONTRACT.md` | input esterno resta `unknown`, output è `HookOutput` |
 | fixture/demo expected outputs | `12_DEMO_SCENARIO.md` | dati concreti per test E2E |
 | `Database` | `better-sqlite3` | non esportare da `shared`; import locale in `store`/moduli che aprono DB |
 | `SourceFile` | `ts-morph` | import locale in indexer |
@@ -565,21 +544,19 @@ Regola per agente stupido: se un tipo in signature non è definito in `04`, cerc
 
 | Modulo | Può importare | Non può importare |
 |---|---|---|
-| `shared` | nessun modulo interno | runtime/store/indexer/renderer/agents/cli/mcp/hooks |
-| `runtime` | `shared` | cli/mcp/hooks |
-| `store` | `shared`, tipi runtime | cli/mcp/hooks/renderer |
-| `indexer` | `shared`, `runtime`, `store` | cli/mcp/hooks |
-| `renderer` | `shared`, `runtime`, `store` | cli/mcp/hooks |
-| `agents` | `shared`, `runtime`, `store`, `renderer` solo per render-agent | cli/mcp/hooks |
+| `shared` | nessun modulo interno | runtime/store/indexer/renderer/agents/cli/mcp |
+| `runtime` | `shared` | cli/mcp |
+| `store` | `shared`, tipi runtime | cli/mcp/renderer |
+| `indexer` | `shared`, `runtime`, `store` | cli/mcp |
+| `renderer` | `shared`, `runtime`, `store` | cli/mcp |
+| `agents` | `shared`, `runtime`, `store`, `renderer` solo per render-agent | cli/mcp |
 | `cli` | moduli pubblici runtime/store/indexer/renderer/agents | mcp protocol internals |
 | `mcp` | runtime/agents/renderer/shared | cli console output |
-| `hooks` | runtime/store/agents/shared o command wrappers dedicati | MCP server internals |
 
 Invarianti:
 
 - `shared` non deve dipendere da `better-sqlite3`.
 - `mcp` non deve usare `printResult()`.
-- `hooks` non devono scrivere testo libero su stdout.
 - `agents` non devono invocare subagenti Codex.
 
 ---
@@ -592,14 +569,13 @@ Invarianti:
 | CLI command handlers | `CliResult<T>` | `CliResult` con `error` | `runCli()` converte in exit code |
 | CLI stdout `--json` | JSON compatto | JSON compatto | nessuna prosa |
 | MCP handlers | output typed | throw `PmemError` | solo `server.ts` mappa su error payload MCP |
-| Hook runner | `HookOutput` | `HookOutput` no-op con warning | hook non rompe protocollo |
 | Micro-agent dispatcher | `AgentOutput<N>` | throw `PmemError("AGENT_ERROR")` o validation | output validato |
 
 ### 4.1 Recoverability default
 
 | Code | Recoverable default |
 |---|---|
-| `INVALID_INPUT`, `VALIDATION_ERROR`, `NOT_INITIALIZED`, `ALREADY_EXISTS`, `CONFIG_ERROR`, `FS_ERROR`, `INDEX_ERROR`, `RENDER_ERROR`, `AGENT_ERROR`, `MCP_ERROR`, `HOOK_ERROR`, `STATE_ERROR`, `FRAME_NOT_FOUND`, `TEMPLATE_ERROR` | `true` |
+| `INVALID_INPUT`, `VALIDATION_ERROR`, `NOT_INITIALIZED`, `ALREADY_EXISTS`, `CONFIG_ERROR`, `FS_ERROR`, `INDEX_ERROR`, `RENDER_ERROR`, `AGENT_ERROR`, `MCP_ERROR`, `STATE_ERROR`, `FRAME_NOT_FOUND`, `TEMPLATE_ERROR` | `true` |
 | `DB_ERROR`, `SAFETY_ERROR`, `INTERNAL_ERROR` | `false` salvo dettagli espliciti |
 
 ---
@@ -641,12 +617,11 @@ P1 produce artifact statici del plugin. Anche se alcuni sono file JSON/TOML/YAML
 
 | File | Funzione/simbolo | Signature | Input | Output | Side effects | Invarianti | Error handling | Test |
 |---|---|---|---|---|---|---|---|---|
-| `src/plugin/manifest.ts` | `buildPluginManifest` | `function buildPluginManifest(options: PluginManifestOptions): PluginManifest` | name/version/bin/mcp/skills/hooks/assets | manifest object | none | path relativi al plugin; no absolute path | `VALIDATION_ERROR` | schema snapshot |
+| `src/plugin/manifest.ts` | `buildPluginManifest` | `function buildPluginManifest(options: PluginManifestOptions): PluginManifest` | name/version/mcp/skills/assets | manifest object | none | path relativi al plugin; no absolute path; no unsupported hooks field | `VALIDATION_ERROR` | schema snapshot |
 | `src/plugin/manifest.ts` | `validatePluginManifest` | `function validatePluginManifest(value: unknown): PluginManifest` | unknown JSON | manifest typed | none | Zod/schema source of truth | `CONFIG_ERROR` | invalid/missing fields |
 | `src/plugin/mcp-config.ts` | `buildMcpConfig` | `function buildMcpConfig(options: McpConfigOptions): McpConfig` | server command/cwd/env | `.mcp.json` object | none | stdio only; command points to dist MCP server | `VALIDATION_ERROR` | snapshot |
 | `src/plugin/mcp-config.ts` | `validateMcpConfig` | `function validateMcpConfig(value: unknown): McpConfig` | unknown JSON | typed config | none | no unsupported transport v0.1 | `CONFIG_ERROR` | invalid transport |
 | `src/plugin/skill.ts` | `buildRepoMemorySkillDoc` | `function buildRepoMemorySkillDoc(options: SkillDocOptions): string` | plugin commands/tool names | SKILL.md content | none | skill is workflow only; no project memory content | `TEMPLATE_ERROR` | contains MCP workflow |
-| `src/plugin/hooks-config.ts` | `buildHooksConfig` | `function buildHooksConfig(options: HooksConfigOptions): HooksConfig` | dist paths | hooks config object | none | hook commands point to build output; trust note in docs | `VALIDATION_ERROR` | all 4 hooks present |
 | `src/plugin/assets.ts` | `ensureAssetPlaceholders` | `function ensureAssetPlaceholders(paths: PluginAssetPaths, options?: { force?: boolean }): void` | asset paths | void | writes placeholder icon/logo if missing | never overwrites without force | `FS_ERROR`, `ALREADY_EXISTS` | creates/skips |
 | `src/plugin/validate-artifacts.ts` | `validatePluginArtifacts` | `function validatePluginArtifacts(root: string): PluginArtifactValidationResult` | plugin root | validation summary | reads files | P1 gate; no writes | missing/invalid -> recoverable errors | fixture plugin root |
 
@@ -657,7 +632,6 @@ Artifact obbligatori P1:
 .mcp.json
 skills/repo-memory/SKILL.md
 skills/repo-memory/agents/openai.yaml
-hooks/hooks.json
 assets/icon.png
 assets/logo.png
 ```
@@ -674,8 +648,8 @@ assets/logo.png
 | `src/runtime/memory-paths.ts` | `getMemoryPaths` | `function getMemoryPaths(projectRoot: string): MemoryPaths` | abs project root | paths object | none | all writes under `<root>/.codex/memory` | `CONFIG_ERROR` | exact paths |
 | `src/runtime/memory-paths.ts` | `ensureMemoryDirectories` | `function ensureMemoryDirectories(paths: MemoryPaths): void` | paths | void | creates dirs | idempotent; never deletes | `FS_ERROR` | init tree |
 | `src/runtime/context.ts` | `resolveRuntimeContext` | `function resolveRuntimeContext(options?: ResolveContextOptions): RuntimeContext` | cwd/allowMissingConfig/openDb | context | may open DB | config/db behavior explicit via options | `NOT_INITIALIZED`, `CONFIG_ERROR`, `DB_ERROR` | non-init/init |
-| `src/runtime/config-loader.ts` | `defaultProjectConfig` | `function defaultProjectConfig(projectName?: string): ProjectMemoryConfig` | optional project name | config | none | schemaVersion 1; default hooks safe | none | defaults snapshot |
-| `src/runtime/config-loader.ts` | `loadProjectConfig` | `function loadProjectConfig(paths: MemoryPaths, options?: { allowMissing?: boolean }): ProjectMemoryConfig` | paths/options | validated config | reads config | missing allowed only for doctor/head/UserPromptSubmit | invalid -> `CONFIG_ERROR` | missing/invalid/partial |
+| `src/runtime/config-loader.ts` | `defaultProjectConfig` | `function defaultProjectConfig(projectName?: string): ProjectMemoryConfig` | optional project name | config | none | schemaVersion 1; lifecycle has no config hooks | none | defaults snapshot |
+| `src/runtime/config-loader.ts` | `loadProjectConfig` | `function loadProjectConfig(paths: MemoryPaths, options?: { allowMissing?: boolean }): ProjectMemoryConfig` | paths/options | validated config | reads config | missing allowed only for doctor/head/memory.head/agents list-install | invalid -> `CONFIG_ERROR` | missing/invalid/partial |
 | `src/runtime/config-loader.ts` | `writeDefaultProjectConfig` | `function writeDefaultProjectConfig(paths: MemoryPaths, options?: { force?: boolean }): ProjectMemoryConfig` | paths/force | written config | writes config atomically | no overwrite unless force | `ALREADY_EXISTS`, `FS_ERROR` | init/force |
 | `src/runtime/config-loader.ts` | `validateProjectConfig` | `function validateProjectConfig(value: unknown): ProjectMemoryConfig` | unknown | typed config | none | Zod/schema source of truth | `CONFIG_ERROR` | schema variants |
 | `src/runtime/state-machine.ts` | `transitionMemoryState` | `function transitionMemoryState(current: MemoryStatus, event: MemoryEvent): MemoryStatus` | status/event | next status | none | only documented transitions; idempotent allowed for same terminal state | invalid -> `STATE_ERROR` | matrix |
@@ -882,32 +856,27 @@ Regola: gli handler validano input e restituiscono output typed. Non creano wrap
 
 ---
 
-## P7 — hooks
+## P7 — supported lifecycle
 
-### 7.1 Hook loop guard
+### 7.1 Skill lifecycle contract
 
-`Stop` deve usare entrambi:
+Codex app plugin validation does not accept plugin-declared hooks in v0.1 packaging. The lifecycle is implemented through supported skill and MCP primitives:
 
 ```text
-if process.env.PMEM_HOOK_RUNNING === "1" -> no-op warning "hook_loop_guard_env"
-if .codex/memory/cache/hook-refresh.lock exists and not expired -> no-op warning "hook_loop_guard_lock"
-when invoking refresh from Stop, set PMEM_HOOK_RUNNING=1 and create lock with TTL 5 minutes
-cleanup lock best-effort after refresh
+Prompt start -> memory.head
+Implementation intent -> memory.query
+New artifact intent -> memory.duplicates
+After source changes -> memory.refresh changedOnly=true render=true
+Visual orientation -> memory.frame
+Review/closeout -> memory.diff
 ```
 
-### 7.2 Hook function contracts
+### 7.2 Skill/agent artifact contracts
 
 | File | Funzione/simbolo | Signature | Input | Output | Side effects | Invarianti | Error handling | Test |
 |---|---|---|---|---|---|---|---|---|
-| `src/hooks/shared.ts` | `readHookInput` | `async function readHookInput(stdin?: NodeJS.ReadStream): Promise<HookInputResult>` | stdin | event+warnings | reads stdin | empty -> `{ event:{}, warnings:[] }`; invalid JSON -> `{ event:{}, warnings:[...] }` | never throws for parse | empty/invalid |
-| `src/hooks/shared.ts` | `writeHookJson` | `function writeHookJson(value: HookOutput): void` | HookOutput | void | writes stdout | compact JSON only | serialization failure writes safe no-op JSON | shape |
-| `src/hooks/shared.ts` | `resolveHookRuntimeContext` | `function resolveHookRuntimeContext(event: unknown): RuntimeContext \| null` | event | context/null | reads cwd/env/config maybe DB | no throw for missing/non-init | invalid root -> null | missing event |
-| `src/hooks/shared.ts` | `isHookLoopGuardActive` | `function isHookLoopGuardActive(paths: MemoryPaths): boolean` | paths | boolean | reads env/lock | true blocks Stop refresh | FS read error -> true + warning by caller | env/lock |
-| `src/hooks/shared.ts` | `withHookLoopGuard` | `async function withHookLoopGuard<T>(paths: MemoryPaths, fn: () => Promise<T>): Promise<T>` | paths/fn | callback result | writes/removes lock; sets env for child process | lock TTL 5 minutes | cleanup best-effort | lock lifecycle |
-| `src/hooks/user-prompt-submit.ts` | `runUserPromptSubmitHook` | `async function runUserPromptSubmitHook(event: unknown): Promise<HookOutput>` | event | additional context/noop | reads memory state only | no scan/index/render; safe pre-init | errors -> no-op warning | non-init/dirty/fresh |
-| `src/hooks/post-tool-use.ts` | `runPostToolUseHook` | `async function runPostToolUseHook(event: unknown): Promise<HookOutput>` | event | marked_dirty/noop | marks dirty if repo files changed | ignores `.codex/memory/**`; no refresh | DB errors warning, no crash | changed/no changed |
-| `src/hooks/stop.ts` | `runStopHook` | `async function runStopHook(event: unknown): Promise<HookOutput>` | event | refreshed/noop | may run changed-only refresh | only dirty + config enabled + under max files + loop guard false | refresh failure warning, protocol intact | dirty refresh/no loop |
-| `src/hooks/subagent-stop.ts` | `runSubagentStopHook` | `async function runSubagentStopHook(event: unknown): Promise<HookOutput>` | event | logged/noop | may append retrieval log/warning | no source modification; parse best-effort | parse errors warning | structured/unstructured |
+| `skills/repo-memory/SKILL.md` | n/a | markdown + YAML frontmatter | n/a | workflow instructions | none | documents supported lifecycle; no project-specific memory facts; no hook requirement | plugin validation warning | artifact test |
+| `skills/repo-memory/agents/openai.yaml` | n/a | Codex agent YAML | n/a | agent metadata | none | `allow_implicit_invocation=true`; dependencies contain exactly six memory tools | plugin validation warning | artifact test |
 
 ---
 
@@ -934,7 +903,7 @@ pmem-architecture-reviewer.toml
 Un agente può creare helper non elencati nelle tabelle solo se tutte queste condizioni sono vere:
 
 1. il file helper resta nello stesso modulo del chiamante;
-2. non è importato da CLI, MCP o hook come API pubblica;
+2. non è importato da CLI o MCP come API pubblica;
 3. non introduce nuovi side effect non documentati;
 4. non cambia shape di output pubblico;
 5. non richiede nuove tabelle, comandi, tool o config fields;
@@ -972,7 +941,7 @@ Dopo il global-pass5 autonomous-ready, questi contratti sono considerati allinea
 | `06_CLI_CONTRACTS.md` | allineato: error enum canonico, PNG nullable, `doctor` schema checks, comandi vietati esclusi |
 | `07_MCP_TOOL_CONTRACTS.md` | allineato: output `visualFrame`/`frame` come `{ svg, png, map }`, error enum canonico, error mapping nel server MCP |
 | `08_RENDERER_VISUAL_CONTRACT.md` | allineato: SVG/map obbligatori, PNG nullable, source hash senza timestamp, atomic writes |
-| `09_AGENTS_AND_HOOKS_CONTRACT.md` | allineato: scoring deterministico, duplicate thresholds, hook loop guard env+lock, HookOutput shape |
+| `09_AGENTS_AND_HOOKS_CONTRACT.md` | allineato: scoring deterministico, duplicate thresholds, lifecycle skill/MCP |
 | `10_TEST_PLAN_AND_ACCEPTANCE.md` | allineato: `current.png` opzionale; `png_export_failed` warning accettato |
 | `11_CODEX_IMPLEMENTATION_PROMPTS.md` | allineato: prompt pass-by-pass vietano scope creep e vietano PNG obbligatorio |
 | `12_DEMO_SCENARIO.md` | allineato: demo accetta PNG assente e verifica hard delete cascade |

@@ -37,7 +37,7 @@ export function buildPluginManifest(options: PluginManifestOptions): PluginManif
   const manifest: PluginManifest = {
     name: options.packageName,
     version: options.version,
-    description: options.description ?? "Local repository memory for Codex with SQLite, deterministic frames, MCP tools and conservative hooks.",
+    description: options.description ?? "Local repository memory for Codex with SQLite, deterministic frames, MCP tools and an implicit skill lifecycle.",
     author: {
       name: "Project Memory Maintainers"
     },
@@ -47,10 +47,10 @@ export function buildPluginManifest(options: PluginManifestOptions): PluginManif
     interface: {
       displayName: "Codex Project Memory",
       shortDescription: "Local repository memory for Codex.",
-      longDescription: "Indexes repository structure into local SQLite, exposes compact MCP tools, renders deterministic SVG maps and provides conservative hooks.",
+      longDescription: "Indexes repository structure into local SQLite, exposes compact MCP tools, renders deterministic SVG maps and uses Codex-supported implicit skill invocation as the project lifecycle.",
       developerName: "Project Memory Maintainers",
       category: "Productivity",
-      capabilities: ["MCP", "CLI", "Hooks"],
+      capabilities: ["MCP", "CLI", "Implicit Skill"],
       defaultPrompt: ["Query project memory before implementing.", "Check duplicate risk for a new service.", "Refresh project memory after code changes."],
       brandColor: "#2563EB",
       composerIcon: options.assets?.iconPng ? `./${options.assets.iconPng}` : undefined,

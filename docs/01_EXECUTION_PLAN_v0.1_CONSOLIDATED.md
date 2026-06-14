@@ -60,7 +60,6 @@ Distribuzione:
 .codex-plugin/plugin.json
 .mcp.json
 skills/
-hooks/
 assets/
 src/
 ```
@@ -150,14 +149,15 @@ B. Subagenti Codex opzionali
    - non sono parte obbligatoria del runtime
 ```
 
-### 2.7 Hook lifecycle conservativo
+### 2.7 Supported lifecycle conservativo
 
-- `UserPromptSubmit`: solo check leggero; mai scan pesante.
-- `PostToolUse`: marca dirty se rileva file modificati.
-- `Stop`: refresh changed-only solo se dirty e config abilitata.
-- `SubagentStop`: registra output/warning strutturati; no side effect pesanti.
+- Prompt start: `memory.head`; mai scan pesante.
+- Implementation intent: `memory.query` prima di editare.
+- New artifact intent: `memory.duplicates` prima di creare artifact.
+- Closeout: `memory.refresh` changed-only/render default dopo modifiche sorgente.
+- Review: `memory.diff` quando serve delta compatto.
 
-Gli hook devono sopravvivere a input vuoto o incompleto.
+Il plugin non dichiara hook non supportati nel manifest.
 
 ### 2.8 Linguaggi v0.1
 
@@ -187,7 +187,7 @@ SVG + map JSON -> obbligatori
 PNG -> nullable/best-effort
 MCP visualFrame/frame -> { svg, png, map } con png nullabile
 retrieval/duplicate -> scoring deterministico
-Stop hook -> loop guard env + lock file
+supported lifecycle -> skill implicita + MCP tools
 public outputs -> path relativi POSIX, no source code dump
 ```
 
@@ -260,7 +260,7 @@ default projectName: package.json name se disponibile, altrimenti basename root
 default frame: current
 default refresh: changedOnly=true, render=true
 default query limits: maxFiles=8, maxSymbols=12, maxWarnings=8
-default hook Stop max changed files: 20
+default supported lifecycle refresh: memory.refresh changedOnly=true render=true
 ```
 
 Un agente può cambiare questi default solo se aggiorna prima i contratti canonici e i test.
@@ -274,7 +274,7 @@ Un agente può cambiare questi default solo se aggiorna prima i contratti canoni
 - plugin manifest;
 - MCP config;
 - skill interna;
-- hook bundle;
+- supported lifecycle via implicit skill policy;
 - CLI `pmem`;
 - `.codex/memory` per repository;
 - SQLite schema v1 senza `features`;
@@ -354,9 +354,6 @@ codex-project-memory/
       agents/
         openai.yaml
 
-  hooks/
-    hooks.json
-
   bin/
     pmem
 
@@ -372,7 +369,6 @@ codex-project-memory/
     indexer/
     renderer/
     agents/
-    hooks/
     shared/
 
   templates/
@@ -452,7 +448,7 @@ node dist/cli/pmem.js --help
 - creare `skills/repo-memory/agents/openai.yaml`;
 - creare asset placeholder;
 - documentare installazione locale;
-- esplicitare che gli hook richiedono trust/review.
+- esplicitare il lifecycle supportato skill+MCP.
 
 **Gate:** build/test + verifica path manifest.
 
@@ -536,21 +532,19 @@ node dist/cli/pmem.js --help
 
 **Gate:** tool list corretta; tutti i tool rispondono con JSON prevedibile.
 
-### P7 — Hook bundle
+### P7 — Supported lifecycle
 
-**Obiettivo:** collegare memoria al lifecycle Codex senza invasività.
+**Obiettivo:** collegare memoria al lifecycle Codex usando primitive supportate dal plugin system.
 
 **Task:**
 
-- `hooks/hooks.json`;
-- hook scripts TypeScript;
-- stdin JSON parsing robusto;
-- dirty flag;
-- refresh changed-only su Stop se abilitato;
-- loop guard env + lock file;
-- log.
+- `skills/repo-memory/SKILL.md` con mapping lifecycle;
+- `skills/repo-memory/agents/openai.yaml` con `allow_implicit_invocation=true`;
+- dipendenze sui sei tool MCP v0.1;
+- `memory.refresh` changed-only dopo modifiche sorgente;
+- `memory.diff` per closeout compatto.
 
-**Gate:** hook non crashano con input vuoto; Stop non crea loop; auto-refresh disattivabile.
+**Gate:** skill/agent YAML validi; lifecycle non richiede hook plugin; subagenti restano opzionali.
 
 ### P8 — Custom subagents templates
 
@@ -590,7 +584,7 @@ PMEM-020..028  Indexing
 PMEM-030..038  Visual memory
 PMEM-040..047  Agents and retrieval
 PMEM-050..058  MCP
-PMEM-060..067  Hooks and subagents
+PMEM-060..067  Supported lifecycle and subagents
 PMEM-070..077  Tests and demo
 ```
 
@@ -632,7 +626,7 @@ Risultati obbligatori:
 - `memory.query` restituisce pochi file esatti;
 - `memory.duplicates` segnala duplicati plausibili;
 - `memory.refresh` aggiorna changed-only;
-- hook non bloccano flusso normale;
+- lifecycle skill/MCP non blocca flusso normale;
 - subagenti opzionali read-only;
 - contesto compatto.
 
@@ -643,7 +637,7 @@ Risultati obbligatori:
 | Rischio | Mitigazione |
 |---|---|
 | Skill scambiata per prodotto | skill solo workflow, operazioni via MCP/CLI |
-| Hook invasivi | dirty flag, changed-only, no-op sicuri, config disable |
+| Lifecycle invasivo | skill implicita, changed-only, nessun hook plugin |
 | Subagenti costosi/non deterministici | runtime rule-based, subagenti opzionali read-only |
 | SVG fragile | layout semplice a griglia, map JSON obbligatoria come contratto |
 | AST incompleto | best-effort, warning, fallback path/name search |

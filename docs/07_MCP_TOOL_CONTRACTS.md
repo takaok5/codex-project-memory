@@ -98,7 +98,6 @@ INDEX_ERROR
 RENDER_ERROR
 AGENT_ERROR
 MCP_ERROR
-HOOK_ERROR
 SAFETY_ERROR
 STATE_ERROR
 FRAME_NOT_FOUND
@@ -441,7 +440,7 @@ async function handleMemoryRefresh(input: MemoryRefreshInput, env: McpToolEnv): 
 ### Invarianti
 
 - `changedOnly` default true.
-- Non usa full scan se invocato da hook Stop salvo comando esplicito fuori hook e documentato.
+- Non usa full scan implicito; `memory.refresh` resta changed-only per default.
 - Applica hard delete cascade per file cancellati.
 - Applica warning lifecycle/dedupe per file indicizzati.
 - Render è eseguito se `render=true`; PNG failure non è fatale.

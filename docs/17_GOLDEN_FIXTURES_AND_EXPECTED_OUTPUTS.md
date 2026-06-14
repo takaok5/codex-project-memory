@@ -1,7 +1,7 @@
 # Codex Project Memory Plugin — golden fixtures and expected outputs v0.1
 
 **Stato:** fixture e golden output autoritativi per P3–P9.  
-**Scopo:** dare a un agente stupido dati concreti per test, DB rows minime, CLI/MCP expected output e hook fixtures.  
+**Scopo:** dare a un agente stupido dati concreti per test, DB rows minime, CLI/MCP expected output e lifecycle fixtures.
 **Regola:** se `12_DEMO_SCENARIO.md` diverge da questo file, usare questo file.
 
 ---
@@ -273,11 +273,6 @@ Dopo `pmem init --json`, nei test E2E aggiornare `.codex/memory/project-memory.c
     "maxFiles": 8,
     "maxSymbols": 12,
     "maxWarnings": 8
-  },
-  "hooks": {
-    "enabled": true,
-    "autoRefreshOnStop": true,
-    "maxChangedFilesForStopRefresh": 20
   }
 }
 ```
@@ -686,268 +681,53 @@ query output does not include src/audit/audit.service.ts
 
 ---
 
-## 7. Hook event fixtures
+## 7. Supported lifecycle fixtures
 
-All hook runners receive `unknown` input and must never throw because the event shape is unfamiliar.
+### 7.1 Skill lifecycle text
 
-### 7.1 Empty stdin
-
-Input:
+`skills/repo-memory/SKILL.md` must contain:
 
 ```text
-<empty>
+Supported lifecycle
+Prompt start: call `memory.head`
+Implementation intent: call `memory.query`
+New artifact intent: call `memory.duplicates`
+After source changes: call `memory.refresh`
+Review/closeout: call `memory.diff`
 ```
 
-Expected:
+### 7.2 Agent YAML
+
+`skills/repo-memory/agents/openai.yaml` must contain:
+
+```yaml
+policy:
+  allow_implicit_invocation: true
+dependencies:
+  tools:
+    - memory.head
+    - memory.query
+    - memory.duplicates
+    - memory.frame
+    - memory.refresh
+    - memory.diff
+```
+
+### 7.3 Closeout refresh
+
+Expected supported closeout after source changes:
 
 ```json
 {
-  "ok": true,
-  "action": "noop",
-  "warnings": []
-}
-```
-
-A hook may include `hook_input_invalid` only for non-empty invalid JSON, not for empty stdin.
-
-### 7.2 Invalid JSON stdin
-
-Input:
-
-```text
-{not-json
-```
-
-Expected:
-
-```json
-{
-  "ok": true,
-  "action": "noop",
-  "warnings": ["hook_input_invalid: invalid JSON"]
-}
-```
-
-### 7.3 `UserPromptSubmit` with prompt text
-
-Input:
-
-```json
-{
-  "prompt": "Add suspended subscription access check"
-}
-```
-
-Expected behavior:
-
-```text
-may return additional_context if memory dirty/stale/not initialized
-must not scan, index or render
-must not mark dirty
-```
-
-### 7.4 `PostToolUse` with filesWritten
-
-Input:
-
-```json
-{
-  "tool": {
-    "name": "write_file",
-    "output": {
-      "filesWritten": ["src/access/access.service.ts", ".codex/memory/current.svg"]
-    }
+  "tool": "memory.refresh",
+  "input": {
+    "changedOnly": true,
+    "render": true
   }
 }
 ```
 
-Expected:
-
-```text
-extract src/access/access.service.ts
-ignore .codex/memory/current.svg
-mark memory dirty if initialized
-warning []
-```
-
-### 7.5 `PostToolUse` with output.file_paths
-
-Input:
-
-```json
-{
-  "output": {
-    "file_paths": ["src/auth/auth.controller.ts"]
-  }
-}
-```
-
-Expected extracted changed files:
-
-```json
-["src/auth/auth.controller.ts"]
-```
-
-### 7.6 `PostToolUse` with changedFiles
-
-Input:
-
-```json
-{
-  "changedFiles": ["src/turnstile/turnstile.service.ts"]
-}
-```
-
-Expected extracted changed files:
-
-```json
-["src/turnstile/turnstile.service.ts"]
-```
-
-### 7.7 `PostToolUse` with filePath
-
-Input:
-
-```json
-{
-  "filePath": "src/subscriptions/subscription.service.ts"
-}
-```
-
-Expected extracted changed files:
-
-```json
-["src/subscriptions/subscription.service.ts"]
-```
-
-### 7.8 Unknown event shape
-
-Input:
-
-```json
-{
-  "something": "else"
-}
-```
-
-Expected:
-
-```json
-{
-  "ok": true,
-  "action": "noop",
-  "warnings": ["hook_event_unrecognized: no changed files found"]
-}
-```
-
-### 7.9 Stop dirty refresh
-
-Preconditions:
-
-```text
-memory initialized
-project_state.memory_dirty=true
-config.hooks.enabled=true
-config.hooks.autoRefreshOnStop=true
-changed files count <= maxChangedFilesForStopRefresh
-PMEM_HOOK_RUNNING not set
-no active lock
-```
-
-Expected:
-
-```json
-{
-  "ok": true,
-  "action": "refreshed",
-  "warnings": []
-}
-```
-
-PNG failure may add `png_export_failed: ...` but must keep action `refreshed` if SVG/map succeed.
-
-### 7.10 Stop no refresh because env guard
-
-Environment:
-
-```text
-PMEM_HOOK_RUNNING=1
-```
-
-Expected:
-
-```json
-{
-  "ok": true,
-  "action": "noop",
-  "warnings": ["hook_loop_guard_env: stop refresh skipped"]
-}
-```
-
-### 7.11 Stop no refresh because active lock
-
-Lock file:
-
-```json
-{
-  "createdAt": "2099-01-01T00:00:00.000Z",
-  "pid": 12345,
-  "reason": "stop-refresh"
-}
-```
-
-Expected:
-
-```json
-{
-  "ok": true,
-  "action": "noop",
-  "warnings": ["hook_loop_guard_lock: stop refresh skipped"]
-}
-```
-
-### 7.12 SubagentStop structured output
-
-Input:
-
-```json
-{
-  "subagent": "pmem_retriever",
-  "output": {
-    "modules": ["access"],
-    "files": ["src/access/access.service.ts"],
-    "warnings": []
-  }
-}
-```
-
-Expected:
-
-```text
-action == logged or noop
-never refresh
-never modify source
-may append retrieval log compactly
-```
-
-### 7.13 SubagentStop free text
-
-Input:
-
-```json
-{
-  "subagent": "pmem_retriever",
-  "output": "AccessService is relevant."
-}
-```
-
-Expected:
-
-```text
-action == logged or noop
-warnings may include hook_event_unrecognized only if no useful structured data extracted
-never throw
-```
+PNG failure may add `png_export_failed: ...` but must keep the refresh successful if SVG/map succeed.
 
 ---
 
@@ -958,7 +738,6 @@ The E2E test must recursively inspect these outputs for absolute paths and backs
 ```text
 CLI JSON stdout for every command
 MCP tool outputs
-hook stdout JSON
 .codex/memory/generated/*.json
 .codex/memory/*.map.json
 .codex/memory/frames/*.map.json

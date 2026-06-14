@@ -1,7 +1,7 @@
 {
   "name": "codex-project-memory",
   "version": "0.1.0",
-  "description": "Local repository memory for Codex with SQLite, deterministic frames, MCP tools and conservative hooks.",
+  "description": "Local repository memory for Codex with SQLite, deterministic frames, MCP tools and an implicit skill lifecycle.",
   "author": {
     "name": "Project Memory Maintainers"
   },
@@ -11,10 +11,10 @@
   "interface": {
     "displayName": "Codex Project Memory",
     "shortDescription": "Local repository memory for Codex.",
-    "longDescription": "Indexes repository structure into local SQLite, exposes compact MCP tools, renders deterministic SVG maps and provides conservative hooks.",
+    "longDescription": "Indexes repository structure into local SQLite, exposes compact MCP tools, renders deterministic SVG maps and uses Codex-supported implicit skill invocation as the project lifecycle.",
     "developerName": "Project Memory Maintainers",
     "category": "Productivity",
-    "capabilities": ["MCP", "CLI", "Hooks"],
+    "capabilities": ["MCP", "CLI", "Implicit Skill"],
     "defaultPrompt": [
       "Query project memory before implementing.",
       "Check duplicate risk for a new service.",

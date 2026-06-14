@@ -16,7 +16,7 @@ Durante l'implementazione, usare questa precedenza locale:
 3. `16_PUBLIC_SCHEMAS.md` per shape JSON, config, errori, warning e snapshot.
 4. `05_DATA_MODEL_SQLITE.md` per schema DB e repository.
 5. `06_CLI_CONTRACTS.md` e `07_MCP_TOOL_CONTRACTS.md` per comportamento pubblico.
-6. `08_RENDERER_VISUAL_CONTRACT.md` e `09_AGENTS_AND_HOOKS_CONTRACT.md` per renderer, agenti e hook.
+6. `08_RENDERER_VISUAL_CONTRACT.md` e `09_AGENTS_AND_HOOKS_CONTRACT.md` per renderer, agenti e lifecycle.
 7. Questo file per lista file-per-pass, export ammessi e gate.
 8. `15_STATIC_FILE_TEMPLATES.md` per contenuto esatto dei file statici.
 9. `17_GOLDEN_FIXTURES_AND_EXPECTED_OUTPUTS.md` per fixture, expected rows e golden output.
@@ -46,14 +46,13 @@ Ogni pass va eseguito con questo algoritmo, senza salto di fase:
 Regole dure:
 
 - `src/shared/**` non importa moduli interni.
-- `src/runtime/**` non importa CLI/MCP/hooks.
-- `src/store/**` non importa CLI/MCP/hooks/renderer.
-- `src/indexer/**` non importa CLI/MCP/hooks.
-- `src/renderer/**` non importa CLI/MCP/hooks.
-- `src/agents/**` non importa CLI/MCP/hooks.
+- `src/runtime/**` non importa CLI/MCP.
+- `src/store/**` non importa CLI/MCP/renderer.
+- `src/indexer/**` non importa CLI/MCP.
+- `src/renderer/**` non importa CLI/MCP.
+- `src/agents/**` non importa CLI/MCP.
 - `src/cli/**` non importa internals MCP protocol.
 - `src/mcp/**` non usa `printResult()` o output terminale.
-- `src/hooks/**` non scrive testo libero su stdout.
 
 Helper privati sono ammessi solo se restano nello stesso modulo, non diventano API pubblica, non aggiungono side effect e non cambiano shape pubbliche. Ogni helper di path safety, serializzazione, schema, scoring o hashing deve avere test.
 
@@ -72,13 +71,13 @@ Gate aggiuntivi:
 
 | Pass | Comandi aggiuntivi obbligatori |
 |---|---|
-| Pass 1 | `node dist/cli/pmem.js --help`; `node dist/cli/pmem.js --version`; parse JSON di `.codex-plugin/plugin.json`, `.mcp.json`, `hooks/hooks.json` |
+| Pass 1 | `node dist/cli/pmem.js --help`; `node dist/cli/pmem.js --version`; parse JSON di `.codex-plugin/plugin.json`, `.mcp.json`; validate skill frontmatter e agent YAML |
 | Pass 2 | `node dist/cli/pmem.js init --json`; `node dist/cli/pmem.js doctor --json`; `node dist/cli/pmem.js head --json` su temp repo |
 | Pass 3 | `node dist/cli/pmem.js scan --json`; `node dist/cli/pmem.js index --json`; `node dist/cli/pmem.js index --changed --json` su fixture |
 | Pass 4 | `node dist/cli/pmem.js render --json`; `node dist/cli/pmem.js frame current --json`; validazione SVG/map |
 | Pass 5 | `node dist/cli/pmem.js query "access subscription suspended" --json`; `node dist/cli/pmem.js duplicates --kind service --module access --name AccessValidationService "AccessValidationService / verifica diritto accesso" --json` |
 | Pass 6 | test handlers MCP `memory.head/query/duplicates/frame/refresh/diff`; tool list include solo i tool v0.1 |
-| Pass 7 | hook scripts accettano stdin vuoto e JSON sconosciuto; Stop loop guard testato |
+| Pass 7 | lifecycle supportato via skill implicita: `allow_implicit_invocation=true`, dipendenze sui sei tool MCP, subagenti read-only |
 | Pass 8 | demo end-to-end su `test/fixtures/nest-basic` |
 
 ---
@@ -93,7 +92,7 @@ Gate aggiuntivi:
 06: regole globali CLI
 10: P0/P1 test
 15: template statici
-16: ErrorPayload, CliResult, plugin/mcp/hook schemas
+16: ErrorPayload, CliResult, plugin/mcp/lifecycle schemas
 ```
 
 ### 3.2 File da creare o aggiornare
@@ -103,13 +102,12 @@ Gate aggiuntivi:
 | `package.json` | create | n/a | usare template `15`; no dependency fuori lista |
 | `tsconfig.json` | create | n/a | ESM Node 20, strict |
 | `vitest.config.ts` | create | n/a | test include `test/**/*.test.ts` |
-| `README.md` | create/update | n/a | includere install/trust/dev dal template `15` |
+| `README.md` | create/update | n/a | includere install/dev e supported lifecycle dal template `15` |
 | `bin/pmem` | create | n/a | wrapper eseguibile; non sostituisce `dist/cli/pmem.js` |
 | `.codex-plugin/plugin.json` | create | n/a | template `15`; path relativi |
 | `.mcp.json` | create | n/a | template `15`; server `project-memory` |
-| `hooks/hooks.json` | create | n/a | template `15`; punta a `dist/hooks/*.js` |
 | `skills/repo-memory/SKILL.md` | create | n/a | template `15`; solo workflow, non memoria progetto |
-| `skills/repo-memory/agents/openai.yaml` | create | n/a | template `15` |
+| `skills/repo-memory/agents/openai.yaml` | create | n/a | template `15`; `allow_implicit_invocation=true` e dipendenze MCP |
 | `assets/icon.png` | create | n/a | placeholder PNG valido; non serve grafica finale |
 | `assets/logo.png` | create | n/a | placeholder PNG valido |
 | `src/shared/types.ts` | create | enum/type condivisi | copiare tipi canonici da `04` e schema enum da `16` |
@@ -121,7 +119,6 @@ Gate aggiuntivi:
 | `src/plugin/manifest.ts` | create | `buildPluginManifest`, `validatePluginManifest` | usa schema `16` |
 | `src/plugin/mcp-config.ts` | create | `buildMcpConfig`, `validateMcpConfig` | stdio only |
 | `src/plugin/skill.ts` | create | `buildRepoMemorySkillDoc` | template render deterministico |
-| `src/plugin/hooks-config.ts` | create | `buildHooksConfig` | 4 hook obbligatori |
 | `src/plugin/assets.ts` | create | `ensureAssetPlaceholders` | no overwrite senza force |
 | `src/plugin/validate-artifacts.ts` | create | `validatePluginArtifacts` | gate P1 |
 | `test/shared/errors.test.ts` | create | n/a | PmemError/toErrorPayload |
@@ -581,95 +578,50 @@ Vietati in v0.1: `memory.searchCode`, `memory.sql`, `memory.dump`, `memory.embed
 
 ---
 
-## 9. Pass 7 — P7 + P8, hook bundle e subagent templates
+## 9. Pass 7 — P7 + P8, supported lifecycle e subagent templates
 
 ### 9.1 Leggere prima
 
 ```text
 01: P7, P8
 04: P7, P8
-09: hook/subagent contracts
-15: hooks/agent static templates
-16: HookOutput schema, warning catalog
-17: hook event fixtures
+09: agent/lifecycle contracts
+15: skill lifecycle/agent static templates
+16: MCP, skill/plugin schemas
+17: MCP/demo fixtures
 ```
 
 ### 9.2 File da creare o aggiornare
 
 | File | Azione | Export pubblico ammesso |
 |---|---|---|
-| `src/hooks/shared.ts` | create | `readHookInput`, `writeHookJson`, `resolveHookRuntimeContext`, `extractChangedFilesFromHookEvent`, `isHookLoopGuardActive`, `withHookLoopGuard` |
-| `src/hooks/user-prompt-submit.ts` | create | `runUserPromptSubmitHook` |
-| `src/hooks/post-tool-use.ts` | create | `runPostToolUseHook` |
-| `src/hooks/stop.ts` | create | `runStopHook` |
-| `src/hooks/subagent-stop.ts` | create | `runSubagentStopHook` |
+| `skills/repo-memory/SKILL.md` | update | n/a |
+| `skills/repo-memory/agents/openai.yaml` | update | n/a |
 | `src/agents/templates.ts` | create | `renderAgentTemplate`, `listAgentTemplates`, `installAgentTemplates` |
 | `templates/agents/pmem-retriever.toml` | create | n/a | exact content from `15` |
 | `templates/agents/pmem-duplicate-checker.toml` | create | n/a | exact content from `15` |
 | `templates/agents/pmem-architecture-reviewer.toml` | create | n/a | exact content from `15` |
 | `src/cli/commands/agents.ts` | create | `cmdAgentsInstall`, `cmdAgentsList` |
 | `src/cli/pmem.ts` | update | register `agents install`, `agents list` |
-| `test/hooks/shared.test.ts` | create | n/a |
-| `test/hooks/user-prompt-submit.test.ts` | create | n/a |
-| `test/hooks/post-tool-use.test.ts` | create | n/a |
-| `test/hooks/stop.test.ts` | create | n/a |
-| `test/hooks/subagent-stop.test.ts` | create | n/a |
 | `test/agents/templates.test.ts` | create | n/a |
 | `test/cli/agents.test.ts` | create | n/a |
 
-### 9.3 Changed files extraction obbligatoria
-
-`extractChangedFilesFromHookEvent(event)` usa questa priorità:
+### 9.3 Lifecycle mapping obbligatorio
 
 ```text
-1. event.tool.output.filesWritten[]
-2. event.output.file_paths[]
-3. event.changedFiles[]
-4. event.filePath
-5. fallback: [] + warning "hook_event_unrecognized"
+Prompt start -> memory.head
+Implementation intent -> memory.query
+New artifact intent -> memory.duplicates
+After source changes -> memory.refresh changedOnly=true render=true
+Visual orientation -> memory.frame
+Review/closeout -> memory.diff
 ```
 
-Filtri obbligatori:
+### 9.4 Acceptance pass 7
 
-```text
-ignore .codex/memory/**
-ignore node_modules/**, dist/**, build/**, coverage/**, .git/**
-accept only project-relative POSIX paths after normalization
-reject path with .. after normalization
-```
-
-### 9.4 Lock file obbligatorio
-
-Path:
-
-```text
-.codex/memory/cache/hook-refresh.lock
-```
-
-Shape:
-
-```json
-{
-  "createdAt": "2026-06-09T00:00:00.000Z",
-  "pid": 12345,
-  "reason": "stop-refresh"
-}
-```
-
-Regole:
-
-- TTL 5 minuti.
-- Parse error lock -> considerare lock attivo e no-op con warning `hook_loop_guard_lock`.
-- Clock futuro > 5 minuti -> considerare lock attivo e no-op.
-- Cleanup best-effort dopo refresh.
-- `PMEM_HOOK_RUNNING=1` blocca sempre Stop refresh.
-
-### 9.5 Acceptance pass 7
-
-- Ogni hook accetta stdin vuoto e ritorna JSON `HookOutput` valido.
-- `UserPromptSubmit` non fa scan/index/render.
-- `PostToolUse` marca dirty se file sorgente cambia.
-- `Stop` refresh solo se dirty, enabled, sotto limite e loop guard non attivo.
+- `skills/repo-memory/agents/openai.yaml` contiene `allow_implicit_invocation: true`.
+- Agent YAML dichiara esattamente i sei tool MCP v0.1 come dipendenze.
+- `SKILL.md` documenta il lifecycle supportato e non richiede hook plugin.
 - Subagenti TOML sono read-only e MCP-first.
 - `pmem agents install --scope project --json` non sovrascrive senza force.
 
@@ -711,8 +663,8 @@ La v0.1 è completa solo se:
 - duplicate guard blocca `AccessValidationService` come high risk;
 - refresh changed-only non reindicizza tutto se non necessario;
 - diff non scrive snapshot e non contiene codice sorgente;
-- hook non crashano con eventi sconosciuti;
-- nessun path assoluto compare in DB JSON columns, generated JSON, CLI, MCP, hook output, map o snapshot.
+- lifecycle skill/MCP è validato;
+- nessun path assoluto compare in DB JSON columns, generated JSON, CLI, MCP, map o snapshot.
 
 ---
 
