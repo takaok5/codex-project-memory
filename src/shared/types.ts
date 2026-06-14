@@ -323,3 +323,172 @@ export interface HeadOutput {
   currentFrame: CliFramePath | null;
   activeWarnings: number;
 }
+
+export interface SymbolRecord {
+  id?: number;
+  fileId: number;
+  fqName: string;
+  name: string;
+  kind: ArtifactKind | "class" | "function" | "method" | "const" | "provider";
+  exported: boolean;
+  startLine?: number;
+  endLine?: number;
+  signature?: string;
+  signatureHash?: string;
+  bodyHash?: string;
+  summary?: string;
+}
+
+export interface ImportExportEdgeInput {
+  fromFileId?: number;
+  fromSymbolName?: string;
+  importedName: string;
+  sourceModule: string;
+  edgeKind: "import" | "export" | "dependency";
+  resolved: boolean;
+}
+
+export interface ResolvedSymbolEdgeInput {
+  fromSymbolId: number;
+  toSymbolId: number;
+  edgeKind: "import" | "export" | "dependency";
+  confidence: number;
+}
+
+export interface SymbolEdgeRecord extends ResolvedSymbolEdgeInput {
+  id?: number;
+  sourceFileId: number;
+}
+
+export interface ModuleRecord {
+  id: string;
+  name: string;
+  rootPath?: string;
+  summary?: string;
+  owns: string[];
+  mustNot: string[];
+  dependencies: string[];
+  riskLevel: "normal" | "high";
+  updatedAt: string;
+}
+
+export interface RouteRecordInput {
+  method: string;
+  path: string;
+  handlerSymbolId?: number;
+  moduleId?: string;
+}
+
+export interface RouteRecord extends RouteRecordInput {
+  id?: number;
+  fileId: number;
+}
+
+export interface TestLinkRecord {
+  fileId: number;
+  targetSymbolId?: number;
+  testKind: "unit" | "integration" | "e2e" | "unknown";
+  summary?: string;
+}
+
+export interface WarningRecordInput {
+  warningType: string;
+  severity: WarningSeverity;
+  moduleId?: string;
+  fileId?: number;
+  symbolId?: number;
+  message: string;
+  recommendation?: string;
+  source: WarningSource;
+  confidence: number;
+}
+
+export interface WarningRecord extends WarningRecordInput {
+  id: number;
+  createdAt: string;
+  resolvedAt?: string | null;
+}
+
+export interface SymbolSearchQuery {
+  query?: string;
+  moduleId?: string;
+  filePath?: string;
+  kind?: string;
+  limit?: number;
+}
+
+export interface ScannedFile {
+  path: string;
+  absPath: string;
+  language: LanguageKind | null;
+  sizeBytes: number;
+  hash: string;
+  isTest: boolean;
+  isGenerated: boolean;
+}
+
+export interface AstIndexOptions {
+  fileId: number;
+  moduleId: string | null;
+}
+
+export interface AstIndexResult {
+  file: IndexedFileRecord;
+  symbols: SymbolRecord[];
+  imports: ImportExportEdgeInput[];
+  routes: RouteRecordInput[];
+  testLinks: TestLinkRecord[];
+  warnings: WarningRecordInput[];
+}
+
+export interface IndexOptions {
+  changedOnly?: boolean;
+  render?: boolean;
+  reason?: string;
+}
+
+export interface IndexResult {
+  scannedFiles: number;
+  indexedFiles: number;
+  skippedFiles: number;
+  deletedFiles: number;
+  warningCount: number;
+  status: MemoryStatus;
+}
+
+export interface ScanOutput {
+  files: {
+    scanned: number;
+    included: number;
+    excluded: number;
+    tooLarge: number;
+    unsupported: number;
+  };
+  roots: string[];
+  warnings: string[];
+}
+
+export interface IndexOutput {
+  changedOnly: boolean;
+  files: {
+    scanned: number;
+    indexed: number;
+    skippedUnchanged: number;
+    deleted: number;
+    failed: number;
+  };
+  records: {
+    modules: number;
+    symbols: number;
+    symbolEdges: number;
+    routes: number;
+    tests: number;
+    warningsActive: number;
+    warningsAdded: number;
+    warningsResolved: number;
+  };
+  state: {
+    status: MemoryStatus;
+    memoryDirty: boolean;
+  };
+}

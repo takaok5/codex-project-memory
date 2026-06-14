@@ -3,7 +3,9 @@ import { Command, CommanderError } from "commander";
 import { printResult } from "./output.js";
 import { cmdDoctor } from "./commands/doctor.js";
 import { cmdHead } from "./commands/head.js";
+import { cmdIndex } from "./commands/index.js";
 import { cmdInit } from "./commands/init.js";
+import { cmdScan } from "./commands/scan.js";
 import { toErrorPayload } from "../shared/errors.js";
 import { VERSION } from "../shared/version.js";
 import type { CliResult } from "../shared/types.js";
@@ -44,6 +46,25 @@ export async function runCli(argv: string[], cwd = process.cwd()): Promise<numbe
     .option("--json", "emit compact JSON")
     .action(async (options: { json?: boolean }) => {
       const result = await cmdHead({ cwd });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+
+  program
+    .command("scan")
+    .description("scan project files")
+    .option("--json", "emit compact JSON")
+    .action(async (options: { json?: boolean }) => {
+      const result = await cmdScan({ cwd });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+
+  program
+    .command("index")
+    .description("index project files")
+    .option("--changed", "index changed files only")
+    .option("--json", "emit compact JSON")
+    .action(async (options: { changed?: boolean; json?: boolean }) => {
+      const result = await cmdIndex({ cwd, changedOnly: Boolean(options.changed) });
       exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
     });
 
