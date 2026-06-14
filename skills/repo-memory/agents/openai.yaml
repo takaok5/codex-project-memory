@@ -1,0 +1,16 @@
+name: repo-memory
+version: 0.1.0
+summary: Use project-memory MCP tools to retrieve compact repository context and duplicate-risk checks.
+server: project-memory
+recommended_tools:
+  - memory.head
+  - memory.query
+  - memory.duplicates
+  - memory.frame
+  - memory.refresh
+  - memory.diff
+rules:
+  - Do not read .codex/memory/memory.db directly.
+  - Do not modify source code from memory tools.
+  - Always check duplicates before creating architectural artifacts.
+  - Treat PNG as optional; SVG and map JSON are primary.

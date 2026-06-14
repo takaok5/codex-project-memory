@@ -1,0 +1,21 @@
+{
+  "name": "codex-project-memory",
+  "version": "0.1.0",
+  "mcp": {
+    "command": "node",
+    "args": ["dist/mcp/server.js"]
+  },
+  "skills": [
+    {
+      "name": "repo-memory",
+      "path": "skills/repo-memory/SKILL.md"
+    }
+  ],
+  "hooks": {
+    "path": "hooks/hooks.json"
+  },
+  "assets": {
+    "icon": "assets/icon.png",
+    "logo": "assets/logo.png"
+  }
+}

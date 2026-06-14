@@ -1,0 +1,15 @@
+{
+  "created": [
+    "14_IMPLEMENTATION_MATRIX.md",
+    "15_STATIC_FILE_TEMPLATES.md",
+    "16_PUBLIC_SCHEMAS.md",
+    "17_GOLDEN_FIXTURES_AND_EXPECTED_OUTPUTS.md"
+  ],
+  "updated": [
+    "00_DOCS_INDEX.md",
+    "01_EXECUTION_PLAN_v0.1_CONSOLIDATED.md",
+    "03_IMPLEMENTATION_PLAN_v0.1_REFINED.md",
+    "10_TEST_PLAN_AND_ACCEPTANCE.md"
+  ],
+  "purpose": "docs hardening for autonomous/stupid agent implementation"
+}
