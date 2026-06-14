@@ -3,10 +3,13 @@ import { Command, CommanderError } from "commander";
 import { printResult } from "./output.js";
 import { cmdDoctor } from "./commands/doctor.js";
 import { cmdDiff } from "./commands/diff.js";
+import { cmdDuplicates } from "./commands/duplicates.js";
 import { cmdFrame } from "./commands/frame.js";
 import { cmdHead } from "./commands/head.js";
 import { cmdIndex } from "./commands/index.js";
 import { cmdInit } from "./commands/init.js";
+import { cmdQuery } from "./commands/query.js";
+import { cmdRefresh } from "./commands/refresh.js";
 import { cmdRender } from "./commands/render.js";
 import { cmdScan } from "./commands/scan.js";
 import { toErrorPayload } from "../shared/errors.js";
@@ -100,6 +103,52 @@ export async function runCli(argv: string[], cwd = process.cwd()): Promise<numbe
     .option("--json", "emit compact JSON")
     .action(async (options: { from?: string; to?: string; json?: boolean }) => {
       const result = await cmdDiff({ cwd, from: options.from, to: options.to });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+
+  program
+    .command("query")
+    .description("retrieve compact project memory context")
+    .argument("<intent>", "task intent")
+    .option("--max-files <n>", "maximum files")
+    .option("--max-symbols <n>", "maximum symbols")
+    .option("--max-warnings <n>", "maximum warnings")
+    .option("--visual", "include current frame reference")
+    .option("--json", "emit compact JSON")
+    .action(async (intent: string, options: { maxFiles?: string; maxSymbols?: string; maxWarnings?: string; visual?: boolean; json?: boolean }) => {
+      const result = await cmdQuery({
+        cwd,
+        intent,
+        maxFiles: options.maxFiles ? Number(options.maxFiles) : undefined,
+        maxSymbols: options.maxSymbols ? Number(options.maxSymbols) : undefined,
+        maxWarnings: options.maxWarnings ? Number(options.maxWarnings) : undefined,
+        visual: Boolean(options.visual)
+      });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+
+  program
+    .command("duplicates")
+    .description("check duplicate risk before creating an artifact")
+    .argument("<intent>", "task intent")
+    .requiredOption("--kind <kind>", "artifact kind")
+    .option("--module <moduleId>", "module id")
+    .option("--name <proposedName>", "proposed artifact name")
+    .option("--json", "emit compact JSON")
+    .action(async (intent: string, options: { kind?: string; module?: string; name?: string; json?: boolean }) => {
+      const result = await cmdDuplicates({ cwd, intent, kind: options.kind, moduleId: options.module, proposedName: options.name });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+
+  program
+    .command("refresh")
+    .description("changed-only refresh and render current frame")
+    .option("--changed-only", "accepted for clarity; refresh is changed-only by default")
+    .option("--no-render", "skip render")
+    .option("--reason <reason>", "refresh reason", "manual")
+    .option("--json", "emit compact JSON")
+    .action(async (options: { render?: boolean; reason?: string; json?: boolean }) => {
+      const result = await cmdRefresh({ cwd, render: options.render, reason: options.reason });
       exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
     });
 

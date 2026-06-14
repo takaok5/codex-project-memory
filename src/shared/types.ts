@@ -493,6 +493,116 @@ export interface IndexOutput {
   };
 }
 
+export interface ContextPack {
+  summary: string;
+  modules: ContextModule[];
+  files: ContextFile[];
+  symbols: ContextSymbol[];
+  constraints: string[];
+  warnings: ContextWarning[];
+  nextCommands: string[];
+  visualFrame?: FrameRef;
+}
+
+export interface ContextModule {
+  id: string;
+  name: string;
+  reason: string;
+  score: number;
+}
+
+export interface ContextFile {
+  path: string;
+  moduleId?: string;
+  reason: string;
+  score: number;
+  isTest?: boolean;
+}
+
+export interface ContextSymbol {
+  fqName: string;
+  kind: string;
+  filePath: string;
+  reason: string;
+  score: number;
+}
+
+export interface ContextWarning {
+  severity: WarningSeverity;
+  message: string;
+  filePath?: string;
+  recommendation?: string;
+}
+
+export interface FrameRef {
+  frame: FrameName;
+  svg: string;
+  png: string | null;
+  map: string;
+}
+
+export interface QueryOutput {
+  intent: string;
+  contextPack: ContextPack;
+}
+
+export interface DuplicateCandidate {
+  kind: ArtifactKind;
+  symbolId?: number;
+  fileId?: number;
+  name: string;
+  fqName?: string;
+  filePath?: string;
+  path?: string;
+  moduleId?: string;
+  similarity: number;
+  reason: string;
+}
+
+export interface DuplicateOutput {
+  kind: ArtifactKind;
+  intent: string;
+  risk: RiskLevel;
+  verdict: DuplicateVerdict;
+  matches: DuplicateCandidate[];
+  recommendation: string;
+}
+
+export interface RefreshOutput {
+  changedOnly: true;
+  reason: string;
+  index: {
+    filesScanned: number;
+    filesIndexed: number;
+    filesDeleted: number;
+    warningsActive: number;
+  };
+  render: {
+    skipped: boolean;
+    frames: CliFramePath[];
+    pngExported: boolean;
+  };
+  state: {
+    status: MemoryStatus;
+    memoryDirty: boolean;
+  };
+}
+
+export interface RetrievalAgentInput {
+  intent: string;
+  maxFiles: number;
+  maxSymbols: number;
+  maxWarnings: number;
+  includeVisualFrame: boolean;
+}
+
+export interface DuplicateAgentInput {
+  kind: ArtifactKind;
+  intent: string;
+  moduleId?: string;
+  proposedName?: string;
+}
+
 export interface FrameRecord {
   id: FrameName;
   frameType: FrameType;
