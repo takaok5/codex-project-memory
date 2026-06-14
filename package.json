@@ -4,6 +4,15 @@
   "type": "module",
   "private": true,
   "description": "Local project memory plugin for Codex using SQLite, deterministic SVG frames and MCP tools.",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "codex-plugin",
+    "project-memory",
+    "mcp",
+    "sqlite",
+    "repository-analysis"
+  ],
   "bin": {
     "pmem": "dist/cli/pmem.js"
   },
@@ -14,7 +23,8 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "dev": "tsx src/cli/pmem.ts",
-    "mcp": "node dist/mcp/server.js"
+    "mcp": "node dist/mcp/server.js",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "*",

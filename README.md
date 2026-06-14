@@ -10,6 +10,12 @@ Local repository memory for Codex. It indexes TypeScript/JavaScript structure in
 - Provides `pmem agent run` as the project-local orchestration entrypoint.
 - Produces deterministic SVG and map JSON. PNG export is best-effort and optional.
 
+## Runtime Requirements
+
+- Node.js 20 or newer.
+- Codex with plugin and MCP support.
+- `sharp` is optional. If PNG generation is unavailable, SVG and map JSON remain the required visual outputs.
+
 ## What v0.2 does not do
 
 - No embeddings or vector DB.
@@ -27,6 +33,17 @@ npm test
 node dist/cli/pmem.js --help
 ```
 
+Before packaging or submission:
+
+```bash
+npm ci
+npm run build
+npm test
+node dist/cli/pmem.js --help
+node dist/cli/pmem.js --version
+npm pack --dry-run
+```
+
 ## Local repository setup
 
 ```bash
@@ -39,6 +56,27 @@ pmem head --json
 ## MCP setup
 
 Use `.mcp.json` with server name `project-memory` and command `node dist/mcp/server.js`.
+
+## Codex Plugin Distribution
+
+The plugin can be used locally through a personal or repo marketplace source.
+It can also be shared inside a ChatGPT/Codex workspace from the Codex app.
+
+The current public Codex docs describe curated public plugins and marketplace
+sources, but do not document a self-service submission command, API, or public
+web form for third-party publication into the public Codex Plugin Directory.
+For a public store review request, use the packet in
+`docs/CODEX_PLUGIN_STORE_SUBMISSION.md`.
+
+This repository includes:
+
+- `.codex-plugin/plugin.json`
+- `.mcp.json`
+- `skills/repo-memory/SKILL.md`
+- built runtime under `dist/` after `npm run build`
+- `PRIVACY.md`
+- `SECURITY.md`
+- `CHANGELOG.md`
 
 ## Supported project lifecycle
 
