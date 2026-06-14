@@ -50,3 +50,23 @@ Before creating services, controllers, DTOs, routes, tables, modules, repositori
 ```bash
 pmem duplicates --kind service --module <moduleId> --name <ProposedName> "<intent>" --json
 ```
+
+## Demo Walkthrough
+
+From a copy of `test/fixtures/nest-basic` after `npm run build`:
+
+```bash
+node /path/to/MemoryCodex/dist/cli/pmem.js init --json
+node /path/to/MemoryCodex/dist/cli/pmem.js doctor --json
+node /path/to/MemoryCodex/dist/cli/pmem.js scan --json
+node /path/to/MemoryCodex/dist/cli/pmem.js index --json
+node /path/to/MemoryCodex/dist/cli/pmem.js render --json
+node /path/to/MemoryCodex/dist/cli/pmem.js head --json
+node /path/to/MemoryCodex/dist/cli/pmem.js query "Aggiungi controllo che impedisca l'apertura del tornello se l'abbonamento e sospeso." --visual --json
+node /path/to/MemoryCodex/dist/cli/pmem.js duplicates --kind service --module access --name AccessValidationService "AccessValidationService / verifica diritto accesso" --json
+node /path/to/MemoryCodex/dist/cli/pmem.js frame current --json
+node /path/to/MemoryCodex/dist/cli/pmem.js refresh --changed-only --json
+node /path/to/MemoryCodex/dist/cli/pmem.js diff --json
+```
+
+The duplicate command should return `risk: "high"` and `verdict: "extend_existing_artifact"` for `AccessService`.
