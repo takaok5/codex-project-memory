@@ -77,6 +77,9 @@ function validateHooksConfig(value: unknown): void {
 
 function validateSkill(root: string, warnings: string[]): void {
   const text = readFileSync(path.join(root, "skills/repo-memory/SKILL.md"), "utf8");
+  if (!text.startsWith("---\n")) {
+    warnings.push("skills/repo-memory/SKILL.md: missing YAML frontmatter");
+  }
   for (const required of ["memory.head", "memory.query", "memory.duplicates", "Do not read `.codex/memory/memory.db` directly", "trusted by the user"]) {
     if (!text.includes(required)) {
       warnings.push(`skills/repo-memory/SKILL.md: missing ${required}`);

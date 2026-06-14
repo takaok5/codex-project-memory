@@ -119,19 +119,32 @@ interface CliOutputOptions { json: boolean; verbose?: boolean }
 interface PluginManifestOptions {
   packageName: string;
   version: string;
-  mcpServerPath: string;
-  skillPath: string;
-  hooksConfigPath?: string;
+  description?: string;
+  mcpConfigPath?: string;
+  skillsPath?: string;
   assets?: PluginAssetPaths;
 }
 
 interface PluginManifest {
   name: string;
   version: string;
-  mcp: { command: string; args: string[] };
-  skills: Array<{ name: string; path: string }>;
-  hooks?: { path: string };
-  assets?: { icon?: string; logo?: string };
+  description: string;
+  author: { name: string; email?: string; url?: string };
+  skills: string;
+  mcpServers: string;
+  keywords: string[];
+  interface: {
+    displayName: string;
+    shortDescription: string;
+    longDescription: string;
+    developerName: string;
+    category: string;
+    capabilities: string[];
+    defaultPrompt: string[];
+    brandColor: string;
+    composerIcon?: string;
+    logo?: string;
+  };
 }
 
 interface McpConfigOptions { serverName: "project-memory"; command: string; args: string[] }

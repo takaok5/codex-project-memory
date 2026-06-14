@@ -6,7 +6,12 @@ export function buildRepoMemorySkillDoc(options: SkillDocOptions): string {
     throw new PmemError("TEMPLATE_ERROR", "Unsupported repo memory skill options.");
   }
 
-  return `# Repo Memory
+  return `---
+name: repo-memory
+description: Use Codex Project Memory in repositories with the project-memory MCP server installed.
+---
+
+# Repo Memory
 
 Use this skill when working in a repository that has Codex Project Memory installed.
 

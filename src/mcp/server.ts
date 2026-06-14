@@ -10,8 +10,9 @@ import { handleMemoryDuplicates } from "./tools/duplicates.js";
 import { handleMemoryFrame } from "./tools/frame.js";
 import { handleMemoryRefresh } from "./tools/refresh.js";
 import { handleMemoryDiff } from "./tools/diff.js";
+import { resolveMcpProjectCwd } from "./project-env.js";
 
-export function createMcpServer(env = { cwd: process.cwd() }): McpServer {
+export function createMcpServer(env = { cwd: resolveMcpProjectCwd() }): McpServer {
   const server = new McpServer({ name: "project-memory", version: VERSION });
   const schemas = getMemoryToolSchemas();
   register(server, "memory.head", schemas["memory.head"], async (input) => handleMemoryHead(input, env));

@@ -1,21 +1,27 @@
 {
   "name": "codex-project-memory",
   "version": "0.1.0",
-  "mcp": {
-    "command": "node",
-    "args": ["dist/mcp/server.js"]
+  "description": "Local repository memory for Codex with SQLite, deterministic frames, MCP tools and conservative hooks.",
+  "author": {
+    "name": "Project Memory Maintainers"
   },
-  "skills": [
-    {
-      "name": "repo-memory",
-      "path": "skills/repo-memory/SKILL.md"
-    }
-  ],
-  "hooks": {
-    "path": "hooks/hooks.json"
-  },
-  "assets": {
-    "icon": "assets/icon.png",
-    "logo": "assets/logo.png"
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "keywords": ["codex", "memory", "mcp", "repository"],
+  "interface": {
+    "displayName": "Codex Project Memory",
+    "shortDescription": "Local repository memory for Codex.",
+    "longDescription": "Indexes repository structure into local SQLite, exposes compact MCP tools, renders deterministic SVG maps and provides conservative hooks.",
+    "developerName": "Project Memory Maintainers",
+    "category": "Productivity",
+    "capabilities": ["MCP", "CLI", "Hooks"],
+    "defaultPrompt": [
+      "Query project memory before implementing.",
+      "Check duplicate risk for a new service.",
+      "Refresh project memory after code changes."
+    ],
+    "brandColor": "#2563EB",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png"
   }
 }

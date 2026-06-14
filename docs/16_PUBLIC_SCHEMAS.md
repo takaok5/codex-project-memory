@@ -982,10 +982,23 @@ CLI `DiffOutput` wraps added/removed files and changedWarnings as in section 6.3
 interface PluginManifest {
   name: "codex-project-memory";
   version: "0.1.0";
-  mcp: { command: "node"; args: ["dist/mcp/server.js"] };
-  skills: Array<{ name: "repo-memory"; path: "skills/repo-memory/SKILL.md" }>;
-  hooks: { path: "hooks/hooks.json" };
-  assets: { icon: "assets/icon.png"; logo: "assets/logo.png" };
+  description: string;
+  author: { name: string; email?: string; url?: string };
+  skills: "./skills/";
+  mcpServers: "./.mcp.json";
+  keywords: string[];
+  interface: {
+    displayName: "Codex Project Memory";
+    shortDescription: string;
+    longDescription: string;
+    developerName: string;
+    category: "Productivity";
+    capabilities: string[];
+    defaultPrompt: string[];
+    brandColor: string;
+    composerIcon?: "./assets/icon.png";
+    logo?: "./assets/logo.png";
+  };
 }
 
 interface McpConfig {
@@ -994,5 +1007,7 @@ interface McpConfig {
   };
 }
 ```
+
+`hooks/hooks.json` remains a packaged, reviewable artifact, but v0.1 Codex app packaging does not declare `hooks` inside `.codex-plugin/plugin.json` because current plugin validation rejects that field.
 
 No additional transport fields in v0.1.

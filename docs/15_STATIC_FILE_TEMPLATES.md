@@ -153,22 +153,28 @@ File: `.codex-plugin/plugin.json`
 {
   "name": "codex-project-memory",
   "version": "0.1.0",
-  "mcp": {
-    "command": "node",
-    "args": ["dist/mcp/server.js"]
+  "description": "Local repository memory for Codex with SQLite, deterministic frames, MCP tools and conservative hooks.",
+  "author": {
+    "name": "Project Memory Maintainers"
   },
-  "skills": [
-    {
-      "name": "repo-memory",
-      "path": "skills/repo-memory/SKILL.md"
-    }
-  ],
-  "hooks": {
-    "path": "hooks/hooks.json"
-  },
-  "assets": {
-    "icon": "assets/icon.png",
-    "logo": "assets/logo.png"
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "keywords": ["codex", "memory", "mcp", "repository"],
+  "interface": {
+    "displayName": "Codex Project Memory",
+    "shortDescription": "Local repository memory for Codex.",
+    "longDescription": "Indexes repository structure into local SQLite, exposes compact MCP tools, renders deterministic SVG maps and provides conservative hooks.",
+    "developerName": "Project Memory Maintainers",
+    "category": "Productivity",
+    "capabilities": ["MCP", "CLI", "Hooks"],
+    "defaultPrompt": [
+      "Query project memory before implementing.",
+      "Check duplicate risk for a new service.",
+      "Refresh project memory after code changes."
+    ],
+    "brandColor": "#2563EB",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png"
   }
 }
 ```
@@ -179,9 +185,10 @@ Validation:
 JSON parse ok
 name == package.json name
 version == package.json version
-all paths relative
-mcp.command == "node"
-mcp.args[0] == "dist/mcp/server.js"
+skills == "./skills/"
+mcpServers == "./.mcp.json"
+asset paths are relative and inside plugin archive
+hooks are kept in hooks/hooks.json but not declared in plugin.json because Codex app validation rejects hooks in v0.1 packaging
 ```
 
 ---
@@ -279,6 +286,11 @@ no hook command mutates source directly
 File: `skills/repo-memory/SKILL.md`
 
 ````md
+---
+name: repo-memory
+description: Use Codex Project Memory in repositories with the project-memory MCP server installed.
+---
+
 # Repo Memory
 
 Use this skill when working in a repository that has Codex Project Memory installed.
@@ -321,6 +333,7 @@ Hook execution must be reviewed and trusted by the user before activation. Hooks
 Validation:
 
 ```text
+starts with YAML frontmatter
 mentions memory.head, memory.query, memory.duplicates
 states do not read memory.db directly
 states hooks require trust/review
@@ -334,22 +347,21 @@ contains no project-specific memory facts
 File: `skills/repo-memory/agents/openai.yaml`
 
 ```yaml
-name: repo-memory
-version: 0.1.0
-summary: Use project-memory MCP tools to retrieve compact repository context and duplicate-risk checks.
-server: project-memory
-recommended_tools:
-  - memory.head
-  - memory.query
-  - memory.duplicates
-  - memory.frame
-  - memory.refresh
-  - memory.diff
-rules:
-  - Do not read .codex/memory/memory.db directly.
-  - Do not modify source code from memory tools.
-  - Always check duplicates before creating architectural artifacts.
-  - Treat PNG as optional; SVG and map JSON are primary.
+interface:
+  display_name: Repo Memory
+  short_description: Use project-memory MCP tools for repository context and duplicate checks.
+  brand_color: "#2563EB"
+  default_prompt: Check project memory before implementing this change.
+policy:
+  allow_implicit_invocation: true
+dependencies:
+  tools:
+    - memory.head
+    - memory.query
+    - memory.duplicates
+    - memory.frame
+    - memory.refresh
+    - memory.diff
 ```
 
 ---

@@ -11,21 +11,25 @@ const pluginManifestSchema = z
   .object({
     name: z.literal("codex-project-memory"),
     version: z.literal("0.1.0"),
-    mcp: z.object({
-      command: z.literal("node"),
-      args: z.tuple([z.literal("dist/mcp/server.js")])
-    }).strict(),
-    skills: z.array(
-      z.object({
-        name: z.literal("repo-memory"),
-        path: z.literal("skills/repo-memory/SKILL.md")
-      }).strict()
-    ).length(1),
-    hooks: z.object({ path: z.literal("hooks/hooks.json") }).strict(),
-    assets: z.object({
-      icon: z.literal("assets/icon.png"),
-      logo: z.literal("assets/logo.png")
-    }).strict()
+    description: z.string().min(1),
+    author: z.object({ name: z.string().min(1), email: z.string().optional(), url: z.string().url().optional() }).strict(),
+    skills: z.literal("./skills/"),
+    mcpServers: z.literal("./.mcp.json"),
+    keywords: z.array(z.string().min(1)),
+    interface: z
+      .object({
+        displayName: z.literal("Codex Project Memory"),
+        shortDescription: z.string().min(1),
+        longDescription: z.string().min(1),
+        developerName: z.string().min(1),
+        category: z.literal("Productivity"),
+        capabilities: z.array(z.string().min(1)),
+        defaultPrompt: z.array(z.string().min(1)).min(1).max(3),
+        brandColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+        composerIcon: z.literal("./assets/icon.png").optional(),
+        logo: z.literal("./assets/logo.png").optional()
+      })
+      .strict()
   })
   .strict();
 
@@ -33,23 +37,25 @@ export function buildPluginManifest(options: PluginManifestOptions): PluginManif
   const manifest: PluginManifest = {
     name: options.packageName,
     version: options.version,
-    mcp: {
-      command: "node",
-      args: [options.mcpServerPath]
+    description: options.description ?? "Local repository memory for Codex with SQLite, deterministic frames, MCP tools and conservative hooks.",
+    author: {
+      name: "Project Memory Maintainers"
     },
-    skills: [
-      {
-        name: "repo-memory",
-        path: options.skillPath
-      }
-    ],
-    hooks: options.hooksConfigPath ? { path: options.hooksConfigPath } : undefined,
-    assets: options.assets
-      ? {
-          icon: options.assets.iconPng,
-          logo: options.assets.logoPng
-        }
-      : undefined
+    skills: options.skillsPath ?? "./skills/",
+    mcpServers: options.mcpConfigPath ?? "./.mcp.json",
+    keywords: ["codex", "memory", "mcp", "repository"],
+    interface: {
+      displayName: "Codex Project Memory",
+      shortDescription: "Local repository memory for Codex.",
+      longDescription: "Indexes repository structure into local SQLite, exposes compact MCP tools, renders deterministic SVG maps and provides conservative hooks.",
+      developerName: "Project Memory Maintainers",
+      category: "Productivity",
+      capabilities: ["MCP", "CLI", "Hooks"],
+      defaultPrompt: ["Query project memory before implementing.", "Check duplicate risk for a new service.", "Refresh project memory after code changes."],
+      brandColor: "#2563EB",
+      composerIcon: options.assets?.iconPng ? `./${options.assets.iconPng}` : undefined,
+      logo: options.assets?.logoPng ? `./${options.assets.logoPng}` : undefined
+    }
   };
 
   validateRelativeFields(manifest);
@@ -69,11 +75,10 @@ export function validatePluginManifest(value: unknown): PluginManifest {
 
 function validateRelativeFields(manifest: PluginManifest): void {
   const paths = [
-    ...manifest.mcp.args,
-    ...manifest.skills.map((skill) => skill.path),
-    manifest.hooks?.path,
-    manifest.assets?.icon,
-    manifest.assets?.logo
+    manifest.skills,
+    manifest.mcpServers,
+    manifest.interface.composerIcon,
+    manifest.interface.logo
   ].filter((value): value is string => Boolean(value));
 
   for (const item of paths) {
