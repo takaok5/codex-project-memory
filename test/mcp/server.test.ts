@@ -6,7 +6,7 @@ describe("MCP server", () => {
   it("can be constructed with the closed tool registry", () => {
     const server = createMcpServer({ cwd: process.cwd() });
     expect(server).toBeTruthy();
-    expect(MEMORY_TOOL_NAMES).toHaveLength(6);
+    expect(MEMORY_TOOL_NAMES).toHaveLength(7);
   });
 
   it("resolves project cwd from Codex/workspace environment before fallback", () => {

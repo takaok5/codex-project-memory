@@ -689,11 +689,11 @@ query output does not include src/audit/audit.service.ts
 
 ```text
 Supported lifecycle
-Prompt start: call `memory.head`
-Implementation intent: call `memory.query`
-New artifact intent: call `memory.duplicates`
-After source changes: call `memory.refresh`
-Review/closeout: call `memory.diff`
+Prompt start: call `memory.agent`
+Implementation intent: call `memory.agent`
+New artifact intent: call `memory.agent`
+After source changes: call `memory.agent`
+Review/closeout: call `memory.agent`
 ```
 
 ### 7.2 Agent YAML
@@ -705,6 +705,7 @@ policy:
   allow_implicit_invocation: true
 dependencies:
   tools:
+    - memory.agent
     - memory.head
     - memory.query
     - memory.duplicates
@@ -713,15 +714,17 @@ dependencies:
     - memory.diff
 ```
 
-### 7.3 Closeout refresh
+### 7.3 Closeout agent
 
 Expected supported closeout after source changes:
 
 ```json
 {
-  "tool": "memory.refresh",
+  "tool": "memory.agent",
   "input": {
-    "changedOnly": true,
+    "intent": "post-change refresh",
+    "phase": "post_change",
+    "allowRefresh": true,
     "render": true
   }
 }

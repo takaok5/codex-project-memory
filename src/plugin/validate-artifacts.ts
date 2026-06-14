@@ -61,7 +61,7 @@ function validateSkill(root: string, warnings: string[]): void {
   if (!text.startsWith("---\n")) {
     warnings.push("skills/repo-memory/SKILL.md: missing YAML frontmatter");
   }
-  for (const required of ["Supported lifecycle", "memory.head", "memory.query", "memory.duplicates", "memory.refresh", "Do not read `.codex/memory/memory.db` directly", "implicit skill policy"]) {
+  for (const required of ["Supported lifecycle", "memory.agent", "memory.head", "memory.query", "memory.duplicates", "memory.refresh", "Do not read `.codex/memory/memory.db` directly", "implicit skill policy"]) {
     if (!text.includes(required)) {
       warnings.push(`skills/repo-memory/SKILL.md: missing ${required}`);
     }
@@ -70,7 +70,7 @@ function validateSkill(root: string, warnings: string[]): void {
 
 function validateSkillAgent(root: string, warnings: string[]): void {
   const text = readFileSync(path.join(root, "skills/repo-memory/agents/openai.yaml"), "utf8");
-  for (const required of ["allow_implicit_invocation: true", "memory.head", "memory.query", "memory.duplicates", "memory.frame", "memory.refresh", "memory.diff"]) {
+  for (const required of ["allow_implicit_invocation: true", "memory.agent", "memory.head", "memory.query", "memory.duplicates", "memory.frame", "memory.refresh", "memory.diff"]) {
     if (!text.includes(required)) {
       warnings.push(`skills/repo-memory/agents/openai.yaml: missing ${required}`);
     }

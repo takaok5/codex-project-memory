@@ -20,7 +20,7 @@
 10. `features` resta fuori dal core path v0.1: nessuna funzione obbligatoria lo popola.
 11. PNG è best-effort: SVG e map JSON sono obbligatori; PNG può essere `null` con warning.
 12. `symbol_edges` contiene solo edge risolti con `fromSymbolId` e `toSymbolId` not null; import non risolti diventano warning.
-13. Il lifecycle supportato usa skill implicita e i sei tool MCP v0.1.
+13. Il lifecycle supportato usa skill implicita, `memory.agent` e i sei tool granulari MCP.
 14. Agent scoring e duplicate thresholds sono deterministici e documentati.
 
 ---
@@ -820,7 +820,7 @@ Regola: gli handler validano input e restituiscono output typed. Non creano wrap
 
 | File | Funzione/simbolo | Signature | Input | Output | Side effects | Invarianti | Error handling | Test |
 |---|---|---|---|---|---|---|---|---|
-| `src/mcp/server.ts` | `createMcpServer` | `function createMcpServer(options?: McpServerOptions): McpServer` | options | server | none until started | registers exactly six v0.1 tools | `CONFIG_ERROR` | registry |
+| `src/mcp/server.ts` | `createMcpServer` | `function createMcpServer(options?: McpServerOptions): McpServer` | options | server | none until started | registers seven v0.2 tools including `memory.agent` | `CONFIG_ERROR` | registry |
 | `src/mcp/server.ts` | `startMcpServer` | `async function startMcpServer(server: McpServer): Promise<void>` | server | void | starts stdio | no stdout prose outside protocol | `MCP_ERROR` | stdio smoke |
 | `src/mcp/server.ts` | `mapErrorToMcpPayload` | `function mapErrorToMcpPayload(error: unknown): { error: ErrorPayload }` | unknown | MCP error payload | none | uses `toErrorPayload`; never throws | unknown -> `INTERNAL_ERROR` | mappings |
 | `src/mcp/tool-schemas.ts` | `getToolSchemas` | `function getToolSchemas(): MemoryToolSchemas` | none | schemas | none | schemas match `07_MCP_TOOL_CONTRACTS.md` | none | parse fixtures |
@@ -876,7 +876,7 @@ Review/closeout -> memory.diff
 | File | Funzione/simbolo | Signature | Input | Output | Side effects | Invarianti | Error handling | Test |
 |---|---|---|---|---|---|---|---|---|
 | `skills/repo-memory/SKILL.md` | n/a | markdown + YAML frontmatter | n/a | workflow instructions | none | documents supported lifecycle; no project-specific memory facts; no hook requirement | plugin validation warning | artifact test |
-| `skills/repo-memory/agents/openai.yaml` | n/a | Codex agent YAML | n/a | agent metadata | none | `allow_implicit_invocation=true`; dependencies contain exactly six memory tools | plugin validation warning | artifact test |
+| `skills/repo-memory/agents/openai.yaml` | n/a | Codex agent YAML | n/a | agent metadata | none | `allow_implicit_invocation=true`; dependencies contain `memory.agent` and granular memory tools | plugin validation warning | artifact test |
 
 ---
 

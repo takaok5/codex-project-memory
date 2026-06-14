@@ -1,15 +1,15 @@
-# Codex Project Memory Plugin — contratti MCP v0.1
+# Codex Project Memory Plugin — contratti MCP v0.2
 
 **Stato:** contratto MCP raffinato global-pass5 autonomous-ready, allineato a `04_FUNCTION_CONTRACTS.md`, `05_DATA_MODEL_SQLITE.md` e `06_CLI_CONTRACTS.md`.  
 **Server:** `project-memory`.  
-**Transport v0.1:** stdio.  
+**Transport v0.2:** stdio.
 **Regola:** MCP è l'unica interfaccia operativa che Codex usa per leggere memoria di progetto.
 
 ---
 
 ## 0. Regole vincolanti MCP
 
-1. Il server MCP espone solo i sei tool documentati qui.
+1. Il server MCP espone solo i sette tool documentati qui: sei granulari piu `memory.agent`.
 2. Gli handler tool restituiscono output typed e, in caso di errore, lanciano `PmemError`.
 3. Solo `src/mcp/server.ts` mappa `PmemError` in payload MCP strutturato.
 4. Nessun handler MCP stampa prosa su stdout fuori protocollo.
@@ -31,9 +31,10 @@ memory.duplicates
 memory.frame
 memory.refresh
 memory.diff
+memory.agent
 ```
 
-Tool vietati in v0.1:
+Tool vietati in v0.2:
 
 ```text
 memory.sql
@@ -524,7 +525,77 @@ async function handleMemoryDiff(input: MemoryDiffInput, env: McpToolEnv): Promis
 
 ---
 
-## 9. Istruzioni server-wide per Codex
+## 9. `memory.agent`
+
+### Signature handler
+
+```ts
+async function handleMemoryAgent(input: MemoryAgentInput, env: McpToolEnv): Promise<MemoryAgentOutput>
+```
+
+### Input
+
+```json
+{
+  "intent": "aggiungi controllo accesso abbonamento sospeso",
+  "phase": "pre_create",
+  "artifact": {
+    "kind": "service",
+    "moduleId": "access",
+    "proposedName": "AccessValidationService"
+  },
+  "allowInit": true,
+  "allowRefresh": true,
+  "render": true
+}
+```
+
+### Output
+
+```json
+{
+  "version": 2,
+  "status": "blocked",
+  "actions": [
+    { "name": "head", "status": "completed", "reason": "memory status: fresh" },
+    { "name": "duplicates", "status": "completed", "reason": "risk=high" }
+  ],
+  "decision": {
+    "verdict": "extend_existing_artifact",
+    "message": "Estendere AccessService invece di creare un nuovo servizio di validazione accesso.",
+    "filesToOpen": ["src/access/access.service.ts"],
+    "nextCommands": ["memory.query"]
+  },
+  "warnings": []
+}
+```
+
+### Invarianti
+
+- Usa un orchestratore rule-based condiviso con `pmem agent run`.
+- Non esegue shell verso `pmem`.
+- Puo inizializzare e aggiornare solo `.codex/memory/**`.
+- Non modifica mai codice sorgente del repository.
+- `phase="pre_create"` richiede `artifact.kind`.
+- Duplicate risk `high` restituisce `status="blocked"` e non suggerisce mai `create_new_artifact`.
+- Output typed, senza wrapper `CliResult`.
+
+### Flow
+
+```text
+1. head
+2. if not_initialized and allowInit=true -> init + refresh
+3. if not_initialized and allowInit=false -> blocked
+4. if dirty/stale and allowRefresh=true -> refresh
+5. query for pre_task/pre_create/post_change/review
+6. duplicates when artifact exists
+7. frame for orient
+8. diff for review/post_change
+```
+
+---
+
+## 10. Istruzioni server-wide per Codex
 
 Il server MCP deve comunicare queste regole operative nel prompt/tool description del server, non come output prolisso dei tool:
 
@@ -540,25 +611,21 @@ Do not treat missing PNG as memory failure.
 
 ---
 
-## 9.1 Algoritmo MCP per agente Codex semplice
+## 10.1 Algoritmo MCP per agente Codex semplice
 
 Quando Codex deve lavorare su un repository con questo plugin, deve seguire questa sequenza minima:
 
 ```text
-1. call memory.head
-2. if status == not_initialized:
-     ask/use CLI pmem init --json before relying on memory
-3. if status in dirty|stale and task is architecture-relevant:
-     call memory.refresh(changedOnly=true, render=true, reason="pre-task")
-4. call memory.query(intent, includeVisualFrame=true)
-5. before creating any ArtifactKind listed in 02:
-     call memory.duplicates(kind, intent, moduleId/proposedName if known)
-6. if duplicates.risk == high:
-     extend existing artifact; do not create new artifact
-7. open only files returned by memory.query/duplicates unless tests require adjacent file
-8. after changes:
-     call memory.refresh(changedOnly=true, render=true, reason="post-task")
-9. call memory.diff(from="previous", to="current") if summary is needed
+1. call memory.agent(intent, phase="pre_task") before implementation
+2. before creating any ArtifactKind listed in 02:
+     call memory.agent(intent, phase="pre_create", artifact={...})
+3. if decision.verdict == extend_existing_artifact:
+     extend existing artifact; do not create a new artifact
+4. open only files returned by decision.filesToOpen unless tests require adjacent files
+5. after changes:
+     call memory.agent(intent, phase="post_change")
+6. for review:
+     call memory.agent(intent, phase="review")
 ```
 
 Regole:
@@ -570,17 +637,18 @@ Regole:
 
 ---
 
-## 10. Acceptance MCP v0.1
+## 11. Acceptance MCP v0.2
 
 MCP è accettabile solo se:
 
-1. espone esattamente i sei tool documentati;
+1. espone esattamente i sette tool documentati;
 2. `memory.head` funziona prima di init;
-3. gli altri tool falliscono con `NOT_INITIALIZED` recuperabile se memoria assente;
-4. tutti gli output path sono relativi POSIX;
-5. `visualFrame` e `frame` usano `{ svg, png, map }` con `png: string \| null`;
-6. nessun tool restituisce codice, SQL dump o generated JSON completo;
-7. error mapping avviene solo nel server MCP;
-8. `memory.refresh` è changed-only per default;
-9. PNG failure produce warning, non errore tool;
-10. i test MCP coprono success, non-init, invalid input e PNG null.
+3. `memory.agent` funziona prima di init e puo inizializzare/refreshare se `allowInit=true`;
+4. gli altri tool falliscono con `NOT_INITIALIZED` recuperabile se memoria assente;
+5. tutti gli output path sono relativi POSIX;
+6. `visualFrame` e `frame` usano `{ svg, png, map }` con `png: string \| null`;
+7. nessun tool restituisce codice, SQL dump o generated JSON completo;
+8. error mapping avviene solo nel server MCP;
+9. `memory.refresh` è changed-only per default;
+10. PNG failure produce warning, non errore tool;
+11. i test MCP coprono success, non-init, invalid input, PNG null e `memory.agent`.

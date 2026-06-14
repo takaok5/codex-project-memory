@@ -115,7 +115,7 @@ export async function indexProject(ctx: RuntimeContext, options: IndexOptions = 
   }
 
   markMemoryFresh(db, nowIso());
-  setProjectStateValue(db, "indexer_version", "0.1.0");
+  setProjectStateValue(db, "indexer_version", "0.2.0");
   return {
     scannedFiles: scanned.length,
     indexedFiles,

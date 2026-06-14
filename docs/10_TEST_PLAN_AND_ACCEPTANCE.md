@@ -1,4 +1,4 @@
-# Codex Project Memory Plugin — test plan e acceptance v0.1
+# Codex Project Memory Plugin — test plan e acceptance v0.2
 
 **Stato:** test plan raffinato global-pass5 autonomous-ready, allineato ai contratti `04`–`09`.  
 **Obiettivo:** dimostrare che il plugin è installabile, buildabile, affidabile e utile a Codex prima di passare oltre v0.1.
@@ -161,9 +161,9 @@ Test:
 
 Test:
 
-- skill lifecycle documenta `memory.head/query/duplicates/frame/refresh/diff`;
+- skill lifecycle documenta `memory.agent` e i tool granulari;
 - agent YAML contiene `allow_implicit_invocation=true`;
-- agent YAML dichiara esattamente i sei tool MCP v0.1;
+- agent YAML dichiara `memory.agent` e i sei tool granulari;
 - `memory.refresh` resta changed-only/render default per closeout;
 - nessun hook plugin è richiesto o impacchettato;
 - `pmem agents install` crea TOML read-only;
@@ -227,13 +227,14 @@ memory.duplicates
 memory.frame
 memory.refresh
 memory.diff
+memory.agent
 ```
 
 Con:
 
 - output JSON compatto;
 - errori recuperabili con `PmemErrorCode` canonico;
-- `memory.head` funzionante anche prima di init;
+- `memory.head` e `memory.agent` funzionanti anche prima di init;
 - nessun accesso diretto a DB/generated JSON;
 - nessun dump codice;
 - `visualFrame` e `frame` con `png: string \| null`;

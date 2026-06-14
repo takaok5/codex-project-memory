@@ -1,4 +1,4 @@
-# Codex Project Memory Plugin — static file templates v0.1
+# Codex Project Memory Plugin — static file templates v0.2
 
 **Stato:** template statici autoritativi per P0/P1/P8.  
 **Scopo:** permettere a un agente non creativo di creare artifact copiabili senza inventare formato.  
@@ -24,7 +24,7 @@ File: `package.json`
 ```json
 {
   "name": "codex-project-memory",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "private": true,
   "description": "Local project memory plugin for Codex using SQLite, deterministic SVG frames and MCP tools.",
@@ -152,7 +152,7 @@ File: `.codex-plugin/plugin.json`
 ```json
 {
   "name": "codex-project-memory",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local repository memory for Codex with SQLite, deterministic frames, MCP tools and an implicit skill lifecycle.",
   "author": {
     "name": "Project Memory Maintainers"
@@ -228,18 +228,18 @@ The supported replacement is:
 ```text
 skills/repo-memory/SKILL.md contains lifecycle instructions
 skills/repo-memory/agents/openai.yaml sets policy.allow_implicit_invocation=true
-skills/repo-memory/agents/openai.yaml declares all six memory.* MCP tools as dependencies
+skills/repo-memory/agents/openai.yaml declares memory.agent and all six granular memory.* MCP tools as dependencies
 ```
 
 Lifecycle mapping:
 
 ```text
-Prompt start -> memory.head
-Implementation intent -> memory.query
-New artifact intent -> memory.duplicates
-After source changes -> memory.refresh changedOnly=true render=true
-Visual orientation -> memory.frame
-Review/closeout -> memory.diff
+Prompt start -> memory.agent phase=pre_task
+Implementation intent -> memory.agent phase=pre_task
+New artifact intent -> memory.agent phase=pre_create with artifact
+After source changes -> memory.agent phase=post_change
+Visual orientation -> memory.agent phase=orient
+Review/closeout -> memory.agent phase=review
 ```
 
 ---
@@ -260,24 +260,22 @@ Use this skill when working in a repository that has Codex Project Memory instal
 
 ## Core workflow
 
-1. Call `memory.head` before planning implementation.
-2. If status is `not_initialized`, ask the user to run or approve `pmem init --json`.
-3. For any code-change intent, call `memory.query` with the user intent.
-4. Before creating a service, controller, DTO, route, table, module, repository, adapter, job or utility, call `memory.duplicates`.
-5. Prefer the files, symbols, constraints and warnings returned by project-memory over broad repository search.
-6. Use `memory.frame` when a visual frame helps locate modules or risks.
-7. After changes, use `memory.refresh` or `pmem refresh --changed-only --json` when appropriate.
+1. Prefer `memory.agent` for project-memory lifecycle orchestration.
+2. Use granular tools only when debugging or when a narrower read is enough.
+3. Before creating a service, controller, DTO, route, table, module, repository, adapter, job or utility, pass an `artifact` to `memory.agent`.
+4. Prefer the files, symbols, constraints and warnings returned by project-memory over broad repository search.
+5. After changes, use `memory.agent` with `phase: "post_change"` or `pmem agent run --phase post_change --json`.
 
 ## Supported lifecycle
 
 Codex app plugin validation does not currently accept plugin-declared hooks. Use this implicit skill plus MCP tools as the supported project lifecycle:
 
-- Prompt start: call `memory.head` before planning or broad repository search.
-- Implementation intent: call `memory.query` with the user request before editing.
-- New artifact intent: call `memory.duplicates` before creating services, controllers, DTOs, routes, tables, modules, repositories, adapters, jobs or utilities.
-- After source changes: call `memory.refresh` with `changedOnly: true`, `render: true` unless the user asks not to refresh.
-- Visual orientation: call `memory.frame` instead of opening generated files directly.
-- Review/closeout: call `memory.diff` when a compact memory delta is useful.
+- Prompt start: call `memory.agent` with `phase: "pre_task"`.
+- Implementation intent: call `memory.agent` with the user request before editing.
+- New artifact intent: call `memory.agent` with `phase: "pre_create"` and `artifact`.
+- After source changes: call `memory.agent` with `phase: "post_change"`.
+- Visual orientation: call `memory.agent` with `phase: "orient"`.
+- Review/closeout: call `memory.agent` with `phase: "review"`.
 
 ## Hard rules
 
@@ -301,14 +299,14 @@ pmem diff --json
 
 ## Trust note
 
-This plugin does not install lifecycle hooks through `.codex-plugin/plugin.json`. The supported lifecycle is the implicit skill policy above plus the six MCP tools exposed by `project-memory`.
+This plugin does not install lifecycle hooks through `.codex-plugin/plugin.json`. The supported lifecycle is the implicit skill policy above plus `memory.agent` and the granular MCP tools exposed by `project-memory`.
 ````
 
 Validation:
 
 ```text
 starts with YAML frontmatter
-mentions memory.head, memory.query, memory.duplicates
+mentions memory.agent, memory.head, memory.query, memory.duplicates
 states do not read memory.db directly
 states supported lifecycle replacement
 contains no project-specific memory facts
@@ -330,6 +328,7 @@ policy:
   allow_implicit_invocation: true
 dependencies:
   tools:
+    - memory.agent
     - memory.head
     - memory.query
     - memory.duplicates
@@ -349,14 +348,14 @@ File: `README.md`
 
 Local repository memory for Codex. It indexes TypeScript/JavaScript structure into local SQLite, exposes compact MCP tools, and renders deterministic SVG/map frames.
 
-## What v0.1 does
+## What v0.2 does
 
 - Stores memory locally under `.codex/memory`.
 - Indexes TypeScript/JavaScript files, symbols, routes, modules, warnings and duplicate candidates.
-- Exposes MCP tools: `memory.head`, `memory.query`, `memory.duplicates`, `memory.frame`, `memory.refresh`, `memory.diff`.
+- Exposes MCP tools: `memory.agent`, `memory.head`, `memory.query`, `memory.duplicates`, `memory.frame`, `memory.refresh`, `memory.diff`.
 - Produces deterministic SVG and map JSON. PNG export is best-effort and optional.
 
-## What v0.1 does not do
+## What v0.2 does not do
 
 - No embeddings or vector DB.
 - No cloud backend.
@@ -388,7 +387,7 @@ Use `.mcp.json` with server name `project-memory` and command `node dist/mcp/ser
 
 ## Supported project lifecycle
 
-Codex app plugin validation does not currently support plugin-declared hooks. The plugin uses a supported replacement: implicit skill invocation plus MCP tools. On project work, Codex should call `memory.head`, use `memory.query` before edits, use `memory.duplicates` before new artifacts, and call `memory.refresh` after source changes.
+Codex app plugin validation does not currently support plugin-declared hooks. The plugin uses a supported replacement: implicit skill invocation plus MCP tools. On project work, Codex should call `memory.agent` as the preferred lifecycle entrypoint and use granular tools for focused reads/debugging.
 
 ## Duplicate guard
 

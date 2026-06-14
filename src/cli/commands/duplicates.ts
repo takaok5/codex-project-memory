@@ -1,6 +1,7 @@
 import { runDuplicateAgent } from "../../agents/duplicate-agent.js";
 import { resolveRuntimeContext } from "../../runtime/context.js";
 import { PmemError, toErrorPayload } from "../../shared/errors.js";
+import { ARTIFACT_KINDS } from "../../shared/types.js";
 import type { ArtifactKind, CliResult, DuplicateOutput } from "../../shared/types.js";
 import type { MemoryDb } from "../../store/sqlite.js";
 
@@ -12,33 +13,12 @@ export interface DuplicatesCliOptions {
   proposedName?: string;
 }
 
-const ARTIFACT_KINDS = new Set([
-  "service",
-  "controller",
-  "dto",
-  "type",
-  "interface",
-  "enum",
-  "repository",
-  "utility",
-  "route",
-  "migration",
-  "table",
-  "job",
-  "adapter",
-  "module",
-  "feature",
-  "class",
-  "function",
-  "method",
-  "const",
-  "provider"
-]);
+const ARTIFACT_KIND_SET = new Set<string>(ARTIFACT_KINDS);
 
 export async function cmdDuplicates(options: DuplicatesCliOptions): Promise<CliResult<DuplicateOutput>> {
   try {
     const intent = validateIntent(options.intent);
-    if (!options.kind || !ARTIFACT_KINDS.has(options.kind)) {
+    if (!options.kind || !ARTIFACT_KIND_SET.has(options.kind)) {
       throw new PmemError("VALIDATION_ERROR", "Duplicate kind is invalid.");
     }
     const ctx = resolveRuntimeContext({ cwd: options.cwd, openDb: true });

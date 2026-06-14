@@ -64,7 +64,7 @@ Output:
 ```text
 Use defaults without asking:
 - package name codex-project-memory
-- version 0.1.0
+- version 0.2.0
 - CLI pmem
 - MCP server project-memory
 - Node.js 20+ ESM
@@ -335,7 +335,7 @@ Read first:
 
 Do:
 - MCP server bootstrap over stdio
-- tool schemas for exactly six tools
+- tool schemas for exactly seven tools including `memory.agent`
 - memory.head
 - memory.query
 - memory.duplicates
@@ -359,7 +359,7 @@ Validation:
 - npm run build
 - npm test
 - MCP server starts via npm run mcp
-- tool list contains exactly six tools
+- tool list contains exactly seven tools
 - memory.head works before init
 - memory.frame returns png=null when PNG absent
 - errors use canonical PmemErrorCode
@@ -396,7 +396,7 @@ Do not:
 - add unsupported plugin-declared hooks
 - make subagents mandatory
 - let retriever/duplicate agents edit files
-- bypass the six MCP tools for lifecycle actions
+- bypass `memory.agent` or the granular MCP tools for lifecycle actions
 
 Validation:
 - npm run build

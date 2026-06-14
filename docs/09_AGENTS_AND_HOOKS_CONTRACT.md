@@ -1,4 +1,4 @@
-# Codex Project Memory Plugin — agenti e lifecycle supportato v0.1
+# Codex Project Memory Plugin — agenti e lifecycle supportato v0.2
 
 **Stato:** contratto agenti/lifecycle raffinato global-pass5 autonomous-ready, allineato a `04`, `06`, `07` e `08`.
 **Regola chiave:** micro-agent interni e subagenti Codex opzionali sono due livelli diversi. I micro-agent sono runtime; i subagenti sono template read-only e non sono core path.
@@ -7,15 +7,15 @@
 
 ## 0. Decisioni vincolanti agenti/lifecycle
 
-1. I micro-agent in v0.1 sono rule-based e non chiamano modelli esterni.
+1. I micro-agent sono rule-based e non chiamano modelli esterni.
 2. Il dispatcher valida input e output con schema typed.
 3. Retrieval e duplicate usano scoring deterministico documentato, non euristiche libere.
 4. Nessun agente modifica codice sorgente.
 5. Nessun micro-agent invoca subagenti Codex.
 6. Il plugin installabile non dichiara hook: il lifecycle usa skill implicita e MCP tools.
 7. `skills/repo-memory/agents/openai.yaml` deve usare `allow_implicit_invocation=true`.
-8. Il lifecycle deve usare solo i sei tool MCP v0.1.
-9. `memory.refresh` resta changed-only/render di default per closeout.
+8. Il lifecycle deve preferire `memory.agent` e mantenere i sei tool granulari come fallback/debug.
+9. `memory.agent` puo inizializzare e refreshare solo `.codex/memory/**`, mai codice sorgente.
 10. Subagenti installati in `.codex/agents/` sono read-only e opzionali.
 
 ---
@@ -23,6 +23,24 @@
 ## 1. Micro-agent interni runtime
 
 Vivono in `src/agents/` e sono invocati da CLI/MCP. Producono JSON compatto, non prosa libera.
+
+### 1.0 `project-agent`
+
+Orchestratore rule-based condiviso da `pmem agent run` e `memory.agent`.
+
+Flow:
+
+```text
+head -> optional init -> optional refresh -> query -> optional duplicates -> optional frame/diff
+```
+
+Regole:
+
+- `allowInit=true` consente init automatico di `.codex/memory`;
+- `allowRefresh=true` consente refresh/render changed-only;
+- `phase="pre_create"` richiede `artifact.kind`;
+- duplicate high produce `status="blocked"` e `verdict="extend_existing_artifact"`;
+- non modifica mai file sorgente.
 
 ### 1.1 `retrieval-agent`
 
@@ -380,7 +398,7 @@ Do not read memory.db directly.
 
 ## 4. Supported lifecycle
 
-Codex app plugin validation does not accept plugin-declared hooks in v0.1 packaging. The supported replacement is the `repo-memory` skill with implicit invocation plus the project-memory MCP tools.
+Codex app plugin validation does not accept plugin-declared hooks in v0.2 packaging. The supported replacement is the `repo-memory` skill with implicit invocation plus `memory.agent` and the project-memory MCP tools.
 
 Required agent YAML:
 
@@ -389,6 +407,7 @@ policy:
   allow_implicit_invocation: true
 dependencies:
   tools:
+    - memory.agent
     - memory.head
     - memory.query
     - memory.duplicates
@@ -402,12 +421,12 @@ dependencies:
 ## 5. Lifecycle mapping
 
 ```text
-Prompt start -> memory.head
-Implementation intent -> memory.query
-New artifact intent -> memory.duplicates
-After source changes -> memory.refresh changedOnly=true render=true
-Visual orientation -> memory.frame
-Review/closeout -> memory.diff
+Prompt start -> memory.agent phase=pre_task
+Implementation intent -> memory.agent phase=pre_task
+New artifact intent -> memory.agent phase=pre_create with artifact
+After source changes -> memory.agent phase=post_change
+Visual orientation -> memory.agent phase=orient
+Review/closeout -> memory.agent phase=review
 ```
 
 ---
@@ -438,13 +457,13 @@ Review/closeout -> memory.diff
 | Render agent | delega renderer e propaga warning PNG |
 | Subagent templates | sandbox read-only e MCP-first |
 | Lifecycle skill | frontmatter valido, supported lifecycle documentato |
-| Agent YAML | `allow_implicit_invocation=true`, sei tool MCP dichiarati |
-| Lifecycle closeout | `memory.refresh` changed-only/render default |
+| Agent YAML | `allow_implicit_invocation=true`, `memory.agent` e tool granulari dichiarati |
+| Lifecycle closeout | `memory.agent phase=post_change` usa refresh changed-only/render default |
 | Agents install | no overwrite senza force |
 
 ---
 
-## 10. Acceptance agenti/lifecycle v0.1
+## 10. Acceptance agenti/lifecycle v0.2
 
 Accettabile solo se:
 
@@ -453,8 +472,8 @@ Accettabile solo se:
 3. context pack è compatto e senza codice sorgente;
 4. nessun agente richiede LLM/embedding/subagente;
 5. subagenti sono opzionali, read-only, MCP-first;
-6. skill lifecycle documenta `memory.head/query/duplicates/frame/refresh/diff`;
+6. skill lifecycle documenta `memory.agent` come entrypoint e i tool granulari come fallback;
 7. agent YAML abilita invocazione implicita;
 8. nessun hook plugin è richiesto o dichiarato;
-9. `memory.refresh` è il closeout supportato dopo modifiche sorgente;
+9. `memory.agent phase=post_change` è il closeout supportato dopo modifiche sorgente;
 10. nessun output pubblico contiene path assoluti o dump sorgente.

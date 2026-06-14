@@ -17,24 +17,24 @@ Use this skill when working in a repository that has Codex Project Memory instal
 
 ## Core workflow
 
-1. Call \`memory.head\` before planning implementation.
-2. If status is \`not_initialized\`, ask the user to run or approve \`pmem init --json\`.
-3. For any code-change intent, call \`memory.query\` with the user intent.
-4. Before creating a service, controller, DTO, route, table, module, repository, adapter, job or utility, call \`memory.duplicates\`.
-5. Prefer the files, symbols, constraints and warnings returned by project-memory over broad repository search.
-6. Use \`memory.frame\` when a visual frame helps locate modules or risks.
-7. After changes, use \`memory.refresh\` or \`pmem refresh --changed-only --json\` when appropriate.
+1. Prefer \`memory.agent\` for project-memory lifecycle orchestration.
+2. Use granular tools only when debugging or when a narrower read is enough.
+3. Before creating a service, controller, DTO, route, table, module, repository, adapter, job or utility, pass an \`artifact\` to \`memory.agent\`.
+4. Prefer the files, symbols, constraints and warnings returned by project-memory over broad repository search.
+5. After changes, use \`memory.agent\` with \`phase: "post_change"\` or \`pmem agent run --phase post_change --json\`.
 
 ## Supported lifecycle
 
 Codex app plugin validation does not currently accept plugin-declared hooks. Use this implicit skill plus MCP tools as the supported project lifecycle:
 
-- Prompt start: call \`memory.head\` before planning or broad repository search.
-- Implementation intent: call \`memory.query\` with the user request before editing.
-- New artifact intent: call \`memory.duplicates\` before creating services, controllers, DTOs, routes, tables, modules, repositories, adapters, jobs or utilities.
-- After source changes: call \`memory.refresh\` with \`changedOnly: true\`, \`render: true\` unless the user asks not to refresh.
-- Visual orientation: call \`memory.frame\` instead of opening generated files directly.
-- Review/closeout: call \`memory.diff\` when a compact memory delta is useful.
+- Prompt start: call \`memory.agent\` with \`phase: "pre_task"\`.
+- Implementation intent: call \`memory.agent\` with the user request before editing.
+- New artifact intent: call \`memory.agent\` with \`phase: "pre_create"\` and \`artifact\`.
+- After source changes: call \`memory.agent\` with \`phase: "post_change"\`.
+- Visual orientation: call \`memory.agent\` with \`phase: "orient"\`.
+- Review/closeout: call \`memory.agent\` with \`phase: "review"\`.
+
+Granular fallback tools: \`memory.head\`, \`memory.query\`, \`memory.duplicates\`, \`memory.frame\`, \`memory.refresh\`, \`memory.diff\`.
 
 ## Hard rules
 
@@ -48,6 +48,8 @@ Codex app plugin validation does not currently accept plugin-declared hooks. Use
 ## Useful commands
 
 \`\`\`bash
+pmem agent run "<intent>" --json
+pmem agent run "<intent>" --phase pre_create --kind service --module <moduleId> --name <ProposedName> --json
 pmem head --json
 pmem query "<intent>" --json
 pmem duplicates --kind service --module <moduleId> --name <ProposedName> "<intent>" --json
@@ -58,6 +60,6 @@ pmem diff --json
 
 ## Trust note
 
-This plugin does not install lifecycle hooks through \`.codex-plugin/plugin.json\`. The supported lifecycle is the implicit skill policy above plus the six MCP tools exposed by \`project-memory\`.
+This plugin does not install lifecycle hooks through \`.codex-plugin/plugin.json\`. The supported lifecycle is the implicit skill policy above plus \`memory.agent\` and the granular MCP tools exposed by \`project-memory\`.
 `;
 }

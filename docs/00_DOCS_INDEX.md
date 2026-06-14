@@ -122,7 +122,7 @@ Default da usare senza chiedere conferma:
 
 ```text
 package name: codex-project-memory
-versione iniziale: 0.1.0
+versione corrente: 0.2.0
 binario CLI: pmem
 MCP server name: project-memory
 runtime: Node.js 20+ ESM

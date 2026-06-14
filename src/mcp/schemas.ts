@@ -1,6 +1,29 @@
 import * as z from "zod/v4";
 
-export const MEMORY_TOOL_NAMES = ["memory.head", "memory.query", "memory.duplicates", "memory.frame", "memory.refresh", "memory.diff"] as const;
+export const MEMORY_TOOL_NAMES = ["memory.head", "memory.query", "memory.duplicates", "memory.frame", "memory.refresh", "memory.diff", "memory.agent"] as const;
+
+const artifactKindSchema = z.enum([
+  "service",
+  "controller",
+  "dto",
+  "type",
+  "interface",
+  "enum",
+  "repository",
+  "utility",
+  "route",
+  "migration",
+  "table",
+  "job",
+  "adapter",
+  "module",
+  "feature",
+  "class",
+  "function",
+  "method",
+  "const",
+  "provider"
+]);
 
 export function getMemoryToolSchemas() {
   return {
@@ -38,6 +61,22 @@ export function getMemoryToolSchemas() {
       inputSchema: {
         from: z.string().optional(),
         to: z.string().optional()
+      }
+    },
+    "memory.agent": {
+      inputSchema: {
+        intent: z.string().min(3).max(500),
+        phase: z.enum(["pre_task", "pre_create", "post_change", "review", "orient"]).optional(),
+        artifact: z
+          .object({
+            kind: artifactKindSchema,
+            moduleId: z.string().optional(),
+            proposedName: z.string().optional()
+          })
+          .optional(),
+        allowInit: z.boolean().optional(),
+        allowRefresh: z.boolean().optional(),
+        render: z.boolean().optional()
       }
     }
   };

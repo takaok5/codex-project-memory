@@ -76,8 +76,8 @@ Gate aggiuntivi:
 | Pass 3 | `node dist/cli/pmem.js scan --json`; `node dist/cli/pmem.js index --json`; `node dist/cli/pmem.js index --changed --json` su fixture |
 | Pass 4 | `node dist/cli/pmem.js render --json`; `node dist/cli/pmem.js frame current --json`; validazione SVG/map |
 | Pass 5 | `node dist/cli/pmem.js query "access subscription suspended" --json`; `node dist/cli/pmem.js duplicates --kind service --module access --name AccessValidationService "AccessValidationService / verifica diritto accesso" --json` |
-| Pass 6 | test handlers MCP `memory.head/query/duplicates/frame/refresh/diff`; tool list include solo i tool v0.1 |
-| Pass 7 | lifecycle supportato via skill implicita: `allow_implicit_invocation=true`, dipendenze sui sei tool MCP, subagenti read-only |
+| Pass 6 | test handlers MCP `memory.head/query/duplicates/frame/refresh/diff/agent`; tool list include i sette tool v0.2 |
+| Pass 7 | lifecycle supportato via skill implicita: `allow_implicit_invocation=true`, dipendenze su `memory.agent` e tool granulari, subagenti read-only |
 | Pass 8 | demo end-to-end su `test/fixtures/nest-basic` |
 
 ---
@@ -111,7 +111,7 @@ Gate aggiuntivi:
 | `assets/icon.png` | create | n/a | placeholder PNG valido; non serve grafica finale |
 | `assets/logo.png` | create | n/a | placeholder PNG valido |
 | `src/shared/types.ts` | create | enum/type condivisi | copiare tipi canonici da `04` e schema enum da `16` |
-| `src/shared/version.ts` | create | `VERSION` | valore `0.1.0`; test contro package |
+| `src/shared/version.ts` | create | `VERSION` | valore package corrente; test contro package |
 | `src/shared/errors.ts` | create | `PmemError`, `toErrorPayload` | no stack/path assoluti in payload |
 | `src/shared/json.ts` | create | `safeJsonParse`, `writeJson`, `stableStringify` | `stableStringify` ammesso come helper pubblico per hash/schema |
 | `src/cli/output.ts` | create | `printResult` | solo JSON compatto con `--json` |
@@ -142,7 +142,7 @@ I comandi `init/doctor/head/...` possono essere registrati come placeholder solo
 - `npm run build` verde.
 - `npm test` verde.
 - `node dist/cli/pmem.js --help` exit `0`.
-- `node dist/cli/pmem.js --version` stampa `0.1.0` o JSON se supportato con flag futuro.
+- `node dist/cli/pmem.js --version` stampa la versione package corrente o JSON se supportato con flag futuro.
 - Tutti gli artifact statici sono presenti e validabili.
 - Nessun path assoluto dentro JSON statici.
 
@@ -545,12 +545,14 @@ Per eliminare conflitti residui:
 | `src/mcp/tools/frame.ts` | create | `handleMemoryFrame` |
 | `src/mcp/tools/refresh.ts` | create | `handleMemoryRefresh` |
 | `src/mcp/tools/diff.ts` | create | `handleMemoryDiff` |
+| `src/mcp/tools/agent.ts` | create | `handleMemoryAgent` |
 | `test/mcp/server.test.ts` | create | n/a |
 | `test/mcp/schemas.test.ts` | create | n/a |
 | `test/mcp/tools-head.test.ts` | create | n/a |
 | `test/mcp/tools-query.test.ts` | create | n/a |
 | `test/mcp/tools-duplicates.test.ts` | create | n/a |
 | `test/mcp/tools-frame-refresh-diff.test.ts` | create | n/a |
+| `test/mcp/tools-agent.test.ts` | create | n/a |
 
 ### 8.3 Tool list chiusa
 
@@ -563,9 +565,10 @@ memory.duplicates
 memory.frame
 memory.refresh
 memory.diff
+memory.agent
 ```
 
-Vietati in v0.1: `memory.searchCode`, `memory.sql`, `memory.dump`, `memory.embeddings`, `memory.feature`, `memory.write`, `memory.patch`.
+Vietati in v0.2: `memory.searchCode`, `memory.sql`, `memory.dump`, `memory.embeddings`, `memory.feature`, `memory.write`, `memory.patch`.
 
 ### 8.4 Acceptance pass 6
 
@@ -574,7 +577,7 @@ Vietati in v0.1: `memory.searchCode`, `memory.sql`, `memory.dump`, `memory.embed
 - `memory.head` funziona prima di init.
 - `memory.frame` non renderizza implicitamente.
 - `memory.refresh` propaga PNG warning come warning, non errore.
-- Tool list contiene esattamente sei tool.
+- Tool list contiene esattamente sette tool.
 
 ---
 
@@ -609,18 +612,18 @@ Vietati in v0.1: `memory.searchCode`, `memory.sql`, `memory.dump`, `memory.embed
 ### 9.3 Lifecycle mapping obbligatorio
 
 ```text
-Prompt start -> memory.head
-Implementation intent -> memory.query
-New artifact intent -> memory.duplicates
-After source changes -> memory.refresh changedOnly=true render=true
-Visual orientation -> memory.frame
-Review/closeout -> memory.diff
+Prompt start -> memory.agent phase=pre_task
+Implementation intent -> memory.agent phase=pre_task
+New artifact intent -> memory.agent phase=pre_create with artifact
+After source changes -> memory.agent phase=post_change
+Visual orientation -> memory.agent phase=orient
+Review/closeout -> memory.agent phase=review
 ```
 
 ### 9.4 Acceptance pass 7
 
 - `skills/repo-memory/agents/openai.yaml` contiene `allow_implicit_invocation: true`.
-- Agent YAML dichiara esattamente i sei tool MCP v0.1 come dipendenze.
+- Agent YAML dichiara `memory.agent` e i sei tool granulari come dipendenze.
 - `SKILL.md` documenta il lifecycle supportato e non richiede hook plugin.
 - Subagenti TOML sono read-only e MCP-first.
 - `pmem agents install --scope project --json` non sovrascrive senza force.

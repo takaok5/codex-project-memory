@@ -2,14 +2,15 @@
 
 Local repository memory for Codex. It indexes TypeScript/JavaScript structure into local SQLite, exposes compact MCP tools, and renders deterministic SVG/map frames.
 
-## What v0.1 does
+## What v0.2 does
 
 - Stores memory locally under `.codex/memory`.
 - Indexes TypeScript/JavaScript files, symbols, routes, modules, warnings and duplicate candidates.
-- Exposes MCP tools: `memory.head`, `memory.query`, `memory.duplicates`, `memory.frame`, `memory.refresh`, `memory.diff`.
+- Exposes MCP tools: `memory.agent`, `memory.head`, `memory.query`, `memory.duplicates`, `memory.frame`, `memory.refresh`, `memory.diff`.
+- Provides `pmem agent run` as the project-local orchestration entrypoint.
 - Produces deterministic SVG and map JSON. PNG export is best-effort and optional.
 
-## What v0.1 does not do
+## What v0.2 does not do
 
 - No embeddings or vector DB.
 - No cloud backend.
@@ -43,6 +44,13 @@ Use `.mcp.json` with server name `project-memory` and command `node dist/mcp/ser
 
 Codex app plugin validation does not currently support plugin-declared hooks. The plugin uses a supported replacement: implicit skill invocation plus MCP tools. On project work, Codex should call `memory.head`, use `memory.query` before edits, use `memory.duplicates` before new artifacts, and call `memory.refresh` after source changes.
 
+In v0.2 the preferred entrypoint is `memory.agent`, or the CLI equivalent:
+
+```bash
+pmem agent run "<intent>" --json
+pmem agent run "<intent>" --phase pre_create --kind service --module <moduleId> --name <ProposedName> --json
+```
+
 ## Duplicate guard
 
 Before creating services, controllers, DTOs, routes, tables, modules, repositories, adapters, jobs or utilities, run:
@@ -62,7 +70,9 @@ node /path/to/MemoryCodex/dist/cli/pmem.js scan --json
 node /path/to/MemoryCodex/dist/cli/pmem.js index --json
 node /path/to/MemoryCodex/dist/cli/pmem.js render --json
 node /path/to/MemoryCodex/dist/cli/pmem.js head --json
+node /path/to/MemoryCodex/dist/cli/pmem.js agent run "Aggiungi controllo che impedisca l'apertura del tornello se l'abbonamento e sospeso." --json
 node /path/to/MemoryCodex/dist/cli/pmem.js query "Aggiungi controllo che impedisca l'apertura del tornello se l'abbonamento e sospeso." --visual --json
+node /path/to/MemoryCodex/dist/cli/pmem.js agent run "AccessValidationService / verifica diritto accesso" --phase pre_create --kind service --module access --name AccessValidationService --json
 node /path/to/MemoryCodex/dist/cli/pmem.js duplicates --kind service --module access --name AccessValidationService "AccessValidationService / verifica diritto accesso" --json
 node /path/to/MemoryCodex/dist/cli/pmem.js frame current --json
 node /path/to/MemoryCodex/dist/cli/pmem.js refresh --changed-only --json

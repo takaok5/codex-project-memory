@@ -18,7 +18,7 @@ describe("plugin static artifacts", () => {
 
     expect(validatePluginManifest(manifest)).toEqual(buildPluginManifest({
       packageName: "codex-project-memory",
-      version: "0.1.0",
+      version: "0.2.0",
       mcpConfigPath: "./.mcp.json",
       skillsPath: "./skills/",
       assets: { iconPng: "assets/icon.png", logoPng: "assets/logo.png" }

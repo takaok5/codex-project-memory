@@ -540,7 +540,7 @@ node dist/cli/pmem.js --help
 
 - `skills/repo-memory/SKILL.md` con mapping lifecycle;
 - `skills/repo-memory/agents/openai.yaml` con `allow_implicit_invocation=true`;
-- dipendenze sui sei tool MCP v0.1;
+- dipendenze su `memory.agent` e i sei tool granulari MCP;
 - `memory.refresh` changed-only dopo modifiche sorgente;
 - `memory.diff` per closeout compatto.
 

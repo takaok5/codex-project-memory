@@ -10,6 +10,7 @@ import { handleMemoryDuplicates } from "./tools/duplicates.js";
 import { handleMemoryFrame } from "./tools/frame.js";
 import { handleMemoryRefresh } from "./tools/refresh.js";
 import { handleMemoryDiff } from "./tools/diff.js";
+import { handleMemoryAgent } from "./tools/agent.js";
 import { resolveMcpProjectCwd } from "./project-env.js";
 
 export function createMcpServer(env = { cwd: resolveMcpProjectCwd() }): McpServer {
@@ -21,6 +22,7 @@ export function createMcpServer(env = { cwd: resolveMcpProjectCwd() }): McpServe
   register(server, "memory.frame", schemas["memory.frame"], async (input) => handleMemoryFrame(input as never, env));
   register(server, "memory.refresh", schemas["memory.refresh"], async (input) => handleMemoryRefresh(input as never, env));
   register(server, "memory.diff", schemas["memory.diff"], async (input) => handleMemoryDiff(input as never, env));
+  register(server, "memory.agent", schemas["memory.agent"], async (input) => handleMemoryAgent(input as never, env));
   return server;
 }
 

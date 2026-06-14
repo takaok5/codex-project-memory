@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { cmdDiff } from "../../src/cli/commands/diff.js";
 import { cmdDuplicates } from "../../src/cli/commands/duplicates.js";
+import { cmdAgentRun } from "../../src/cli/commands/agent.js";
 import { cmdHead } from "../../src/cli/commands/head.js";
 import { cmdIndex } from "../../src/cli/commands/index.js";
 import { cmdInit } from "../../src/cli/commands/init.js";
@@ -11,6 +12,7 @@ import { cmdQuery } from "../../src/cli/commands/query.js";
 import { cmdRefresh } from "../../src/cli/commands/refresh.js";
 import { cmdRender } from "../../src/cli/commands/render.js";
 import { handleMemoryHead } from "../../src/mcp/tools/head.js";
+import { handleMemoryAgent } from "../../src/mcp/tools/agent.js";
 import { getMemoryPaths } from "../../src/runtime/memory-paths.js";
 import { openMemoryDb } from "../../src/store/sqlite.js";
 
@@ -29,6 +31,8 @@ describe("public output path audit", () => {
       outputs.push(await cmdDiff({ cwd: root }));
       outputs.push(await handleMemoryHead({}, { cwd: root }));
       outputs.push(await cmdRefresh({ cwd: root, render: false, reason: "path-audit" }));
+      outputs.push(await cmdAgentRun({ cwd: root, intent: "access subscription suspended", refresh: false }));
+      outputs.push(await handleMemoryAgent({ intent: "access subscription suspended", allowRefresh: false }, { cwd: root }));
 
       const paths = getMemoryPaths(root);
       for (const file of listJsonFiles(paths.generatedDirAbs)) outputs.push(JSON.parse(readFileSync(file, "utf8")));

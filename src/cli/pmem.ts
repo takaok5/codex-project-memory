@@ -1,6 +1,7 @@
 import { pathToFileURL } from "node:url";
 import { Command, CommanderError } from "commander";
 import { printResult } from "./output.js";
+import { cmdAgentRun } from "./commands/agent.js";
 import { cmdAgentsInstall, cmdAgentsList } from "./commands/agents.js";
 import { cmdDoctor } from "./commands/doctor.js";
 import { cmdDiff } from "./commands/diff.js";
@@ -150,6 +151,34 @@ export async function runCli(argv: string[], cwd = process.cwd()): Promise<numbe
     .option("--json", "emit compact JSON")
     .action(async (options: { render?: boolean; reason?: string; json?: boolean }) => {
       const result = await cmdRefresh({ cwd, render: options.render, reason: options.reason });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+
+  const agent = program.command("agent").description("run the project memory orchestrator");
+  agent
+    .command("run")
+    .description("orchestrate project memory for a task intent")
+    .argument("<intent>", "task intent")
+    .option("--phase <phase>", "pre_task|pre_create|post_change|review|orient", "pre_task")
+    .option("--kind <kind>", "artifact kind for duplicate checks")
+    .option("--module <moduleId>", "module id for duplicate checks")
+    .option("--name <proposedName>", "proposed artifact name")
+    .option("--no-init", "do not initialize missing project memory")
+    .option("--no-refresh", "do not refresh dirty or stale project memory")
+    .option("--no-render", "skip render during refresh")
+    .option("--json", "emit compact JSON")
+    .action(async (intent: string, options: { phase?: string; kind?: string; module?: string; name?: string; init?: boolean; refresh?: boolean; render?: boolean; json?: boolean }) => {
+      const result = await cmdAgentRun({
+        cwd,
+        intent,
+        phase: options.phase,
+        kind: options.kind,
+        moduleId: options.module,
+        proposedName: options.name,
+        init: options.init,
+        refresh: options.refresh,
+        render: options.render
+      });
       exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
     });
 

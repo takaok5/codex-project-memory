@@ -17,27 +17,30 @@ export type MemoryEvent =
 
 export type LanguageKind = "typescript" | "javascript";
 
-export type ArtifactKind =
-  | "service"
-  | "controller"
-  | "dto"
-  | "type"
-  | "interface"
-  | "enum"
-  | "repository"
-  | "utility"
-  | "route"
-  | "migration"
-  | "table"
-  | "job"
-  | "adapter"
-  | "module"
-  | "feature"
-  | "class"
-  | "function"
-  | "method"
-  | "const"
-  | "provider";
+export const ARTIFACT_KINDS = [
+  "service",
+  "controller",
+  "dto",
+  "type",
+  "interface",
+  "enum",
+  "repository",
+  "utility",
+  "route",
+  "migration",
+  "table",
+  "job",
+  "adapter",
+  "module",
+  "feature",
+  "class",
+  "function",
+  "method",
+  "const",
+  "provider"
+] as const;
+
+export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
 
 export type WarningSeverity = "info" | "warning" | "critical";
 export type WarningSource = "parser" | "indexer" | "renderer" | "agent" | "mcp" | "config" | "inferred";
@@ -46,6 +49,10 @@ export type DuplicateVerdict = "create_new_artifact" | "extend_existing_artifact
 export type FrameName = "current" | "overview" | "modules" | "duplicates" | "risks";
 export type FrameType = "current" | "overview" | "module_map" | "duplicate_map" | "risk_map";
 export type AgentName = "retrieval" | "duplicate" | "drift" | "architecture" | "render";
+export type AgentRunPhase = "pre_task" | "pre_create" | "post_change" | "review" | "orient";
+export type AgentRunStatus = "ready" | "initialized" | "refreshed" | "blocked" | "needs_review";
+export type AgentActionStatus = "completed" | "skipped" | "blocked";
+export type AgentDecisionVerdict = "continue" | "create_new_artifact" | "extend_existing_artifact" | "needs_human_review" | "blocked";
 
 export const PMEM_ERROR_CODES = [
   "INVALID_INPUT",
@@ -565,6 +572,48 @@ export interface DuplicateOutput {
   verdict: DuplicateVerdict;
   matches: DuplicateCandidate[];
   recommendation: string;
+}
+
+export interface AgentArtifactInput {
+  kind: ArtifactKind;
+  moduleId?: string;
+  proposedName?: string;
+}
+
+export interface AgentRunInput {
+  intent: string;
+  phase?: AgentRunPhase;
+  artifact?: AgentArtifactInput;
+  allowInit?: boolean;
+  allowRefresh?: boolean;
+  render?: boolean;
+}
+
+export interface AgentAction {
+  name: "head" | "init" | "refresh" | "query" | "duplicates" | "frame" | "diff";
+  status: AgentActionStatus;
+  reason: string;
+}
+
+export interface AgentDecision {
+  verdict: AgentDecisionVerdict;
+  message: string;
+  filesToOpen: string[];
+  nextCommands: string[];
+}
+
+export interface AgentRunOutput {
+  version: 2;
+  status: AgentRunStatus;
+  actions: AgentAction[];
+  head: HeadOutput;
+  query?: QueryOutput;
+  duplicates?: DuplicateOutput;
+  refresh?: RefreshOutput;
+  frame?: FrameOutput;
+  diff?: DiffOutput;
+  decision: AgentDecision;
+  warnings: string[];
 }
 
 export interface RefreshOutput {

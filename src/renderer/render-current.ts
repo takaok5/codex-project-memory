@@ -54,7 +54,7 @@ export async function renderFrame(ctx: RuntimeContext, frame: FrameName, options
   const db = ctx.db as MemoryDb;
   upsertFrame(db, record);
   setProjectStateValue(db, "last_rendered_at", generatedAt);
-  setProjectStateValue(db, "renderer_version", "0.1.0");
+  setProjectStateValue(db, "renderer_version", "0.2.0");
   setProjectStateValue(db, "memory_status", "fresh");
   if (options.writeSnapshot !== false) {
     createMemorySnapshot(ctx, { ref: "latest", write: true });

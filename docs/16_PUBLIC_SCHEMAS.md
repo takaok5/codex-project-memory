@@ -672,6 +672,44 @@ interface MemoryDiffOutput {
   resolvedWarnings: string[];
   warnings: string[];
 }
+
+type AgentRunPhase = "pre_task" | "pre_create" | "post_change" | "review" | "orient";
+type AgentRunStatus = "ready" | "initialized" | "refreshed" | "blocked" | "needs_review";
+
+interface MemoryAgentInput {
+  intent: string;             // trim, 3..500
+  phase?: AgentRunPhase;      // default pre_task
+  artifact?: {
+    kind: ArtifactKind;
+    moduleId?: string;
+    proposedName?: string;
+  };
+  allowInit?: boolean;        // default true
+  allowRefresh?: boolean;     // default true
+  render?: boolean;           // default true
+}
+interface MemoryAgentOutput {
+  version: 2;
+  status: AgentRunStatus;
+  actions: Array<{
+    name: "head" | "init" | "refresh" | "query" | "duplicates" | "frame" | "diff";
+    status: "completed" | "skipped" | "blocked";
+    reason: string;
+  }>;
+  head: HeadOutput;
+  query?: QueryOutput;
+  duplicates?: DuplicateOutput;
+  refresh?: RefreshOutput;
+  frame?: FrameOutput;
+  diff?: DiffOutput;
+  decision: {
+    verdict: "continue" | "create_new_artifact" | "extend_existing_artifact" | "needs_human_review" | "blocked";
+    message: string;
+    filesToOpen: RelativePath[];
+    nextCommands: string[];
+  };
+  warnings: string[];
+}
 ```
 
 MCP error envelope:
@@ -847,6 +885,7 @@ policy:
   allow_implicit_invocation: true
 dependencies:
   tools:
+    - memory.agent
     - memory.head
     - memory.query
     - memory.duplicates
@@ -858,13 +897,15 @@ dependencies:
 Required lifecycle mapping:
 
 ```text
-Prompt start -> memory.head
-Implementation intent -> memory.query
-New artifact intent -> memory.duplicates
-After source changes -> memory.refresh changedOnly=true render=true
-Visual orientation -> memory.frame
-Review/closeout -> memory.diff
+Prompt start -> memory.agent phase=pre_task
+Implementation intent -> memory.agent phase=pre_task
+New artifact intent -> memory.agent phase=pre_create with artifact
+After source changes -> memory.agent phase=post_change
+Visual orientation -> memory.agent phase=orient
+Review/closeout -> memory.agent phase=review
 ```
+
+The six granular tools remain supported for narrow reads/debugging: `memory.head`, `memory.query`, `memory.duplicates`, `memory.frame`, `memory.refresh`, `memory.diff`.
 
 ---
 
@@ -954,7 +995,7 @@ CLI `DiffOutput` wraps added/removed files and changedWarnings as in section 6.3
 ```ts
 interface PluginManifest {
   name: "codex-project-memory";
-  version: "0.1.0";
+  version: "0.2.0";
   description: string;
   author: { name: string; email?: string; url?: string };
   skills: "./skills/";
@@ -981,6 +1022,6 @@ interface McpConfig {
 }
 ```
 
-Plugin-declared hooks are not part of the v0.1 Codex app package because current plugin validation rejects the `hooks` manifest field. The supported lifecycle replacement is `skills/repo-memory/agents/openai.yaml` with `policy.allow_implicit_invocation=true` plus the six MCP tools declared under `dependencies.tools`.
+Plugin-declared hooks are not part of the v0.2 Codex app package because current local plugin validation rejects the `hooks` manifest field. The supported lifecycle replacement is `skills/repo-memory/agents/openai.yaml` with `policy.allow_implicit_invocation=true`, `memory.agent` and the six granular MCP tools declared under `dependencies.tools`.
 
-No additional transport fields in v0.1.
+No additional transport fields in v0.2.

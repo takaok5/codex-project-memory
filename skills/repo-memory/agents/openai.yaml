@@ -7,6 +7,7 @@ policy:
   allow_implicit_invocation: true
 dependencies:
   tools:
+    - memory.agent
     - memory.head
     - memory.query
     - memory.duplicates
