@@ -1,6 +1,7 @@
 import { pathToFileURL } from "node:url";
 import { Command, CommanderError } from "commander";
 import { printResult } from "./output.js";
+import { cmdAgentsInstall, cmdAgentsList } from "./commands/agents.js";
 import { cmdDoctor } from "./commands/doctor.js";
 import { cmdDiff } from "./commands/diff.js";
 import { cmdDuplicates } from "./commands/duplicates.js";
@@ -149,6 +150,26 @@ export async function runCli(argv: string[], cwd = process.cwd()): Promise<numbe
     .option("--json", "emit compact JSON")
     .action(async (options: { render?: boolean; reason?: string; json?: boolean }) => {
       const result = await cmdRefresh({ cwd, render: options.render, reason: options.reason });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+
+  const agents = program.command("agents").description("manage optional read-only Codex subagent templates");
+  agents
+    .command("install")
+    .description("install optional project subagent templates")
+    .option("--scope <scope>", "install scope", "project")
+    .option("--force", "overwrite existing templates")
+    .option("--json", "emit compact JSON")
+    .action(async (options: { scope?: string; force?: boolean; json?: boolean }) => {
+      const result = await cmdAgentsInstall({ cwd, scope: options.scope, force: Boolean(options.force) });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+  agents
+    .command("list")
+    .description("list optional project subagent templates")
+    .option("--json", "emit compact JSON")
+    .action(async (options: { json?: boolean }) => {
+      const result = await cmdAgentsList({ cwd });
       exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
     });
 

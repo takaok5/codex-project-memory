@@ -760,3 +760,28 @@ export interface DiffOutput {
     resolved: string[];
   };
 }
+
+export interface HookOutput {
+  ok: true;
+  action: "noop" | "additional_context" | "marked_dirty" | "refreshed" | "logged";
+  additionalContext?: string;
+  warnings: string[];
+}
+
+export interface HookRefreshLock {
+  createdAt: string;
+  pid: number;
+  reason: string;
+}
+
+export interface AgentsInstallOutput {
+  scope: "project";
+  installed: string[];
+  skipped: string[];
+  overwritten: string[];
+}
+
+export interface AgentsListOutput {
+  available: Array<{ name: string; template: string }>;
+  installed: Array<{ name: string; path: string }>;
+}
