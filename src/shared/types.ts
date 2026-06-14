@@ -146,3 +146,180 @@ export interface PluginArtifactValidationResult {
   missing: string[];
   warnings: string[];
 }
+
+export interface MemoryPaths {
+  projectRootAbs: string;
+  memoryRootAbs: string;
+  memoryRootRel: ".codex/memory";
+  configAbs: string;
+  configRel: ".codex/memory/project-memory.config.json";
+  dbAbs: string;
+  dbRel: ".codex/memory/memory.db";
+  currentSvgAbs: string;
+  currentSvgRel: ".codex/memory/current.svg";
+  currentPngAbs: string;
+  currentPngRel: ".codex/memory/current.png";
+  currentMapAbs: string;
+  currentMapRel: ".codex/memory/current.map.json";
+  framesDirAbs: string;
+  framesDirRel: ".codex/memory/frames";
+  generatedDirAbs: string;
+  generatedDirRel: ".codex/memory/generated";
+  snapshotsDirAbs: string;
+  snapshotsDirRel: ".codex/memory/snapshots";
+  cacheDirAbs: string;
+  cacheDirRel: ".codex/memory/cache";
+  logsDirAbs: string;
+  logsDirRel: ".codex/memory/logs";
+}
+
+export interface ProjectMemoryConfig {
+  schemaVersion: 1;
+  projectName: string;
+  scan: {
+    include: string[];
+    exclude: string[];
+    languages: LanguageKind[];
+    maxFileBytes: number;
+  };
+  modules: Array<{
+    id: string;
+    name: string;
+    rootPath?: string;
+    owns?: string[];
+    mustNot?: string[];
+    dependencies?: string[];
+    riskLevel?: "normal" | "high";
+  }>;
+  criticalRules: string[];
+  render: {
+    png: boolean;
+    maxModules: number;
+    maxWarnings: number;
+  };
+  agents: {
+    maxFiles: number;
+    maxSymbols: number;
+    maxWarnings: number;
+  };
+  hooks: {
+    enabled: boolean;
+    autoRefreshOnStop: boolean;
+    maxChangedFilesForStopRefresh: number;
+  };
+}
+
+export interface RuntimeContext {
+  projectRoot: string;
+  memoryPaths: MemoryPaths;
+  config: ProjectMemoryConfig;
+  db?: unknown;
+}
+
+export interface ProjectRootResult {
+  root: string;
+  method: "git" | "cwd";
+  warnings: string[];
+}
+
+export interface ProjectState {
+  schemaVersion: string | null;
+  status: MemoryStatus;
+  projectName: string | null;
+  lastIndexedAt: string | null;
+  lastRenderedAt: string | null;
+  memoryDirty: boolean;
+  dirtyReason: string;
+  lastError: ErrorPayload | null;
+}
+
+export interface ResolveContextOptions {
+  cwd?: string;
+  allowMissingConfig?: boolean;
+  openDb?: boolean;
+}
+
+export interface IndexedFileRecord {
+  id?: number;
+  path: string;
+  language: LanguageKind | null;
+  moduleId: string | null;
+  hash: string;
+  sizeBytes: number;
+  lineCount: number;
+  isTest: boolean;
+  isGenerated: boolean;
+  lastIndexedAt: string;
+}
+
+export interface FileFilter {
+  moduleId?: string;
+  language?: LanguageKind;
+  isTest?: boolean;
+  limit?: number;
+}
+
+export interface InitOutput {
+  status: MemoryStatus;
+  memoryRoot: ".codex/memory";
+  config: ".codex/memory/project-memory.config.json";
+  db: ".codex/memory/memory.db";
+  schemaVersion: 1;
+  created: string[];
+  skipped: string[];
+}
+
+export interface CliCheck {
+  id: string;
+  status: "ok" | "warning" | "error" | "skipped";
+  message: string;
+  details?: JsonObject;
+}
+
+export interface CliFramePath {
+  frame: FrameName;
+  svg: string;
+  png: string | null;
+  map: string;
+  sourceHash?: string;
+  generatedAt?: string;
+}
+
+export interface DoctorOutput {
+  overallStatus: "ok" | "warning" | "error" | "not_initialized";
+  memoryRoot: ".codex/memory";
+  state: {
+    status: MemoryStatus;
+    schemaVersion: string | null;
+    lastIndexedAt: string | null;
+    lastRenderedAt: string | null;
+    memoryDirty: boolean;
+    dirtyReason: string;
+    lastError: ErrorPayload | null;
+  };
+  checks: CliCheck[];
+  schema: {
+    userVersion: number | null;
+    schemaVersion: string | null;
+    foreignKeysEnabled: boolean | null;
+    requiredTablesPresent: boolean;
+    forbiddenTables: string[];
+  };
+  frames: {
+    current: CliFramePath | null;
+    available: FrameName[];
+  };
+}
+
+export interface HeadOutput {
+  status: MemoryStatus;
+  memoryRoot: ".codex/memory";
+  schemaVersion: string | null;
+  lastIndexedAt: string | null;
+  lastRenderedAt: string | null;
+  memoryDirty: boolean;
+  dirtyReason: string;
+  lastError: ErrorPayload | null;
+  currentFrame: CliFramePath | null;
+  activeWarnings: number;
+}

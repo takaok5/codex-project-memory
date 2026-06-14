@@ -1,7 +1,6 @@
-import { renameSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-import { mkdirSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { PmemError } from "./errors.js";
+import { writeFileAtomic } from "./fs.js";
 
 export type JsonParseResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -35,16 +34,11 @@ export function writeJson(value: unknown): string {
 
 export function writeJsonFileAtomic(path: string, value: unknown): void {
   const content = writeJson(value);
-  const tempPath = `${path}.tmp-${process.pid}-${Date.now()}`;
-  try {
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(tempPath, content);
-    renameSync(tempPath, path);
-  } catch (error) {
-    throw new PmemError("FS_ERROR", "Failed to write JSON file.", {
-      details: { cause: error instanceof Error ? error.message : "unknown" }
-    });
-  }
+  writeFileAtomic(path, content);
+}
+
+export function canonicalJsonHash(value: unknown): string {
+  return `sha256:${createHash("sha256").update(stableStringify(value)).digest("hex")}`;
 }
 
 function canonicalize(value: unknown, seen = new WeakSet<object>()): unknown {
