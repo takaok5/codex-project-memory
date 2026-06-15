@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0 - 2026-06-15
+
+- Added universal language detection with wildcard `scan.languages`.
+- Added structural fallback indexing for Python, Go, Java, C#, PHP, Ruby, Rust,
+  C/C++, Kotlin, Swift, Shell, Dart, Scala, R, Lua, Elixir, Clojure, SQL,
+  HTML/CSS and additional common languages.
+- Added SQLite schema v2 with per-file `analysis_json` and aggregated
+  `language_capabilities`.
+- Added generated language capability JSON and snapshot language/tier metadata.
+- Added user-space language analyzer orchestration under
+  `.codex/memory/cache/language-tools` without global/system installs.
+
 ## 0.2.0 - 2026-06-15
 
 - Added `memory.agent` MCP tool and `pmem agent run` CLI entrypoint.

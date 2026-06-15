@@ -1,4 +1,6 @@
 import { getProjectState } from "../store/project-state-repository.js";
+import { safeJsonParse } from "../shared/json.js";
+import { listLanguageCapabilities } from "../store/language-capability-repository.js";
 export function buildNormalizedGraph(ctx) {
     const db = ctx.db;
     const state = getProjectState(db);
@@ -12,7 +14,8 @@ export function buildNormalizedGraph(ctx) {
         dependencies: parseJsonArray(row.dependencies_json),
         riskLevel: row.risk_level
     }));
-    const files = db.prepare("SELECT id, path, language, module_id, hash, size_bytes, line_count, is_test, is_generated FROM files ORDER BY path ASC").all().map((row) => ({
+    const languageCapabilities = listLanguageCapabilities(db);
+    const files = db.prepare("SELECT id, path, language, module_id, hash, size_bytes, line_count, is_test, is_generated, analysis_json FROM files ORDER BY path ASC").all().map((row) => ({
         id: row.id,
         path: row.path,
         language: row.language,
@@ -21,7 +24,8 @@ export function buildNormalizedGraph(ctx) {
         sizeBytes: row.size_bytes,
         lineCount: row.line_count,
         isTest: row.is_test === 1,
-        isGenerated: row.is_generated === 1
+        isGenerated: row.is_generated === 1,
+        analysis: parseJsonObject(row.analysis_json)
     }));
     const symbols = db
         .prepare(`SELECT s.id, s.fq_name, s.name, s.kind, s.exported, s.start_line, s.end_line, s.signature_hash, s.body_hash, f.path AS file_path, f.module_id
@@ -99,6 +103,7 @@ export function buildNormalizedGraph(ctx) {
     return canonicalizeGraph({
         version: 1,
         project: { name: ctx.config.projectName, status: state.status },
+        languageCapabilities: languageCapabilities.map((item) => ({ ...item })),
         modules,
         files,
         symbols,
@@ -113,6 +118,7 @@ export function canonicalizeGraph(graph) {
     return {
         version: 1,
         project: graph.project,
+        languageCapabilities: sortBy(graph.languageCapabilities, ["language"]),
         modules: sortBy(graph.modules, ["id"]),
         files: sortBy(graph.files, ["path"]),
         symbols: sortBy(graph.symbols, ["fqName", "filePath", "kind"]),
@@ -146,5 +152,9 @@ function parseJsonArray(value) {
     catch {
         return [];
     }
+}
+function parseJsonObject(value) {
+    const parsed = safeJsonParse(value);
+    return parsed.ok && parsed.value && typeof parsed.value === "object" && !Array.isArray(parsed.value) ? parsed.value : {};
 }
 //# sourceMappingURL=graph-builder.js.map

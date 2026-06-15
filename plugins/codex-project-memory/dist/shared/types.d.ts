@@ -5,7 +5,24 @@ export interface JsonObject {
 }
 export type MemoryStatus = "not_initialized" | "initializing" | "fresh" | "stale" | "dirty" | "error";
 export type MemoryEvent = "init_started" | "init_completed" | "index_started" | "index_completed" | "render_completed" | "mark_dirty" | "mark_error" | "doctor_ok";
-export type LanguageKind = "typescript" | "javascript";
+export type LanguageId = string;
+export type LanguageKind = LanguageId;
+export type LanguageAnalysisTier = "deep" | "structural" | "fallback";
+export type LanguageToolStatus = "available" | "missing" | "installing" | "failed" | "disabled" | "unsupported";
+export interface LanguageCapability {
+    language: LanguageId;
+    displayName: string;
+    tier: LanguageAnalysisTier;
+    parser: string;
+    symbols: boolean;
+    dependencies: boolean;
+    tests: boolean;
+    routes: boolean;
+    diagnostics: boolean;
+    tool: string | null;
+    toolStatus: LanguageToolStatus;
+    degradedReason: string | null;
+}
 export declare const ARTIFACT_KINDS: readonly ["service", "controller", "dto", "type", "interface", "enum", "repository", "utility", "route", "migration", "table", "job", "adapter", "module", "feature", "class", "function", "method", "const", "provider"];
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
 export type WarningSeverity = "info" | "warning" | "critical";
@@ -131,8 +148,13 @@ export interface ProjectMemoryConfig {
     scan: {
         include: string[];
         exclude: string[];
-        languages: LanguageKind[];
+        languages: LanguageId[];
         maxFileBytes: number;
+    };
+    languageTools?: {
+        autoInstall: boolean;
+        cachePath: string;
+        installTimeoutMs: number;
     };
     modules: Array<{
         id: string;
@@ -184,7 +206,7 @@ export interface ResolveContextOptions {
 export interface IndexedFileRecord {
     id?: number;
     path: string;
-    language: LanguageKind | null;
+    language: LanguageId | null;
     moduleId: string | null;
     hash: string;
     sizeBytes: number;
@@ -192,10 +214,11 @@ export interface IndexedFileRecord {
     isTest: boolean;
     isGenerated: boolean;
     lastIndexedAt: string;
+    analysis?: LanguageCapability | null;
 }
 export interface FileFilter {
     moduleId?: string;
-    language?: LanguageKind;
+    language?: LanguageId;
     isTest?: boolean;
     limit?: number;
 }
@@ -204,7 +227,7 @@ export interface InitOutput {
     memoryRoot: ".codex/memory";
     config: ".codex/memory/project-memory.config.json";
     db: ".codex/memory/memory.db";
-    schemaVersion: 1;
+    schemaVersion: 2;
     created: string[];
     skipped: string[];
 }
@@ -344,7 +367,8 @@ export interface SymbolSearchQuery {
 export interface ScannedFile {
     path: string;
     absPath: string;
-    language: LanguageKind | null;
+    language: LanguageId | null;
+    displayName: string | null;
     sizeBytes: number;
     hash: string;
     isTest: boolean;
@@ -361,6 +385,7 @@ export interface AstIndexResult {
     routes: RouteRecordInput[];
     testLinks: TestLinkRecord[];
     warnings: WarningRecordInput[];
+    capability?: LanguageCapability;
 }
 export interface IndexOptions {
     changedOnly?: boolean;
@@ -562,6 +587,7 @@ export interface NormalizedGraph {
         status: MemoryStatus;
         generatedAt?: string;
     };
+    languageCapabilities: JsonObject[];
     modules: JsonObject[];
     files: JsonObject[];
     symbols: JsonObject[];
@@ -663,12 +689,14 @@ export interface FrameOutput extends CliFramePath {
 export interface MemorySnapshot {
     version: 1;
     createdAt: string;
-    schemaVersion: "1" | null;
+    schemaVersion: "1" | "2" | null;
     configHash: string | null;
     files: Array<{
         path: string;
         hash: string;
         moduleId: string | null;
+        language?: string | null;
+        tier?: LanguageAnalysisTier | null;
     }>;
     symbols: Array<{
         fqName: string;

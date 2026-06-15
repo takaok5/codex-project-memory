@@ -10,7 +10,8 @@ describe("config loader", () => {
     expect(defaultProjectConfig("demo")).toMatchObject({
       schemaVersion: 1,
       projectName: "demo",
-      scan: { include: ["src/**/*", "apps/**/*", "packages/**/*"], maxFileBytes: 524288 },
+      scan: { include: ["**/*"], languages: ["*"], maxFileBytes: 524288 },
+      languageTools: { autoInstall: true, cachePath: ".codex/memory/cache/language-tools", installTimeoutMs: 120000 },
       render: { png: true, maxModules: 40, maxWarnings: 20 },
       agents: { maxFiles: 8, maxSymbols: 12, maxWarnings: 8 }
     });

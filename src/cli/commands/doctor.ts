@@ -82,7 +82,7 @@ export async function cmdDoctor(options: DoctorOptions): Promise<CliResult<Docto
           }
           checks.push({ id: "sqlite_open", status: "ok", message: "memory.db open" });
           checks.push({ id: "sqlite_foreign_keys", status: foreignKeysEnabled ? "ok" : "error", message: foreignKeysEnabled ? "PRAGMA foreign_keys=ON" : "PRAGMA foreign_keys=OFF" });
-          checks.push({ id: "sqlite_user_version", status: userVersion === 1 ? "ok" : "error", message: `PRAGMA user_version=${userVersion}` });
+          checks.push({ id: "sqlite_user_version", status: userVersion === 2 ? "ok" : "error", message: `PRAGMA user_version=${userVersion}` });
           checks.push({
             id: "sqlite_forbidden_tables",
             status: forbiddenTables.length ? "warning" : "ok",

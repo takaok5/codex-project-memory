@@ -26,10 +26,18 @@ const configSchema = z
       .object({
         include: z.array(z.string()).min(1),
         exclude: z.array(z.string()),
-        languages: z.array(z.enum(["typescript", "javascript"])).min(1),
+        languages: z.array(z.string().min(1).regex(/^(\*|[a-z0-9][a-z0-9_+#.-]*)$/)).min(1),
         maxFileBytes: z.number().int().min(1024).max(5242880)
       })
       .strict(),
+    languageTools: z
+      .object({
+        autoInstall: z.boolean(),
+        cachePath: z.string().min(1),
+        installTimeoutMs: z.number().int().min(1000).max(600000)
+      })
+      .strict()
+      .optional(),
     modules: z.array(moduleSchema),
     criticalRules: z.array(z.string().min(1).max(200)),
     render: z
@@ -54,10 +62,26 @@ export function defaultProjectConfig(projectName = "auto"): ProjectMemoryConfig 
     schemaVersion: 1,
     projectName,
     scan: {
-      include: ["src/**/*", "apps/**/*", "packages/**/*"],
-      exclude: ["node_modules/**", "dist/**", "build/**", "coverage/**", ".next/**", ".turbo/**", ".git/**", ".codex/memory/**"],
-      languages: ["typescript", "javascript"],
+      include: ["**/*"],
+      exclude: [
+        "node_modules/**",
+        "dist/**",
+        "build/**",
+        "coverage/**",
+        ".next/**",
+        ".turbo/**",
+        ".git/**",
+        ".codex/memory/**",
+        "plugins/**/dist/**",
+        "plugins/**/node_modules/**"
+      ],
+      languages: ["*"],
       maxFileBytes: 524288
+    },
+    languageTools: {
+      autoInstall: true,
+      cachePath: ".codex/memory/cache/language-tools",
+      installTimeoutMs: 120000
     },
     modules: [],
     criticalRules: [],
@@ -154,6 +178,7 @@ function normalizeConfig(value: unknown): unknown {
   if (scan) {
     scan.include = scan.include?.map(normalizePathSeparators);
     scan.exclude = Array.from(new Set([...(scan.exclude ?? []), ".codex/memory/**"].map(normalizePathSeparators)));
+    scan.languages = Array.from(new Set((scan.languages ?? ["*"]).map((language) => String(language).trim().toLowerCase()).filter(Boolean)));
   }
   return {
     ...configWithoutLegacyHooks,
@@ -166,7 +191,12 @@ function normalizeConfig(value: unknown): unknown {
       dependencies: module.dependencies ?? [],
       riskLevel: module.riskLevel ?? "normal"
     })),
-    criticalRules: config.criticalRules ?? []
+    criticalRules: config.criticalRules ?? [],
+    languageTools: config.languageTools ?? {
+      autoInstall: true,
+      cachePath: ".codex/memory/cache/language-tools",
+      installTimeoutMs: 120000
+    }
   };
 }
 

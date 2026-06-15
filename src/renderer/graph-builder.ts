@@ -1,5 +1,7 @@
 import { getProjectState } from "../store/project-state-repository.js";
+import { safeJsonParse } from "../shared/json.js";
 import type { JsonObject, NormalizedGraph, RuntimeContext } from "../shared/types.js";
+import { listLanguageCapabilities } from "../store/language-capability-repository.js";
 import type { MemoryDb } from "../store/sqlite.js";
 
 export function buildNormalizedGraph(ctx: RuntimeContext): NormalizedGraph {
@@ -15,7 +17,8 @@ export function buildNormalizedGraph(ctx: RuntimeContext): NormalizedGraph {
     dependencies: parseJsonArray(row.dependencies_json),
     riskLevel: row.risk_level
   }));
-  const files = (db.prepare("SELECT id, path, language, module_id, hash, size_bytes, line_count, is_test, is_generated FROM files ORDER BY path ASC").all() as FileRow[]).map(
+  const languageCapabilities = listLanguageCapabilities(db);
+  const files = (db.prepare("SELECT id, path, language, module_id, hash, size_bytes, line_count, is_test, is_generated, analysis_json FROM files ORDER BY path ASC").all() as FileRow[]).map(
     (row) => ({
       id: row.id,
       path: row.path,
@@ -25,7 +28,8 @@ export function buildNormalizedGraph(ctx: RuntimeContext): NormalizedGraph {
       sizeBytes: row.size_bytes,
       lineCount: row.line_count,
       isTest: row.is_test === 1,
-      isGenerated: row.is_generated === 1
+      isGenerated: row.is_generated === 1,
+      analysis: parseJsonObject(row.analysis_json)
     })
   );
   const symbols = (
@@ -125,6 +129,7 @@ export function buildNormalizedGraph(ctx: RuntimeContext): NormalizedGraph {
   return canonicalizeGraph({
     version: 1,
     project: { name: ctx.config.projectName, status: state.status },
+    languageCapabilities: languageCapabilities.map((item) => ({ ...item })),
     modules,
     files,
     symbols,
@@ -140,6 +145,7 @@ export function canonicalizeGraph(graph: NormalizedGraph): NormalizedGraph {
   return {
     version: 1,
     project: graph.project,
+    languageCapabilities: sortBy(graph.languageCapabilities, ["language"]),
     modules: sortBy(graph.modules, ["id"]),
     files: sortBy(graph.files, ["path"]),
     symbols: sortBy(graph.symbols, ["fqName", "filePath", "kind"]),
@@ -174,6 +180,11 @@ function parseJsonArray(value: string): string[] {
   }
 }
 
+function parseJsonObject(value: string): JsonObject {
+  const parsed = safeJsonParse<JsonObject>(value);
+  return parsed.ok && parsed.value && typeof parsed.value === "object" && !Array.isArray(parsed.value) ? parsed.value : {};
+}
+
 interface ModuleRow {
   id: string;
   name: string;
@@ -195,6 +206,7 @@ interface FileRow {
   line_count: number;
   is_test: number;
   is_generated: number;
+  analysis_json: string;
 }
 
 interface SymbolRow {

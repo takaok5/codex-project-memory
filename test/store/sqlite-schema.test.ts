@@ -6,7 +6,7 @@ import { getMemoryPaths } from "../../src/runtime/memory-paths.js";
 import { ensureSchema, FORBIDDEN_TABLES, openMemoryDb, REQUIRED_TABLES } from "../../src/store/sqlite.js";
 
 describe("sqlite schema", () => {
-  it("creates schema v1 with foreign keys and no forbidden tables", () => {
+  it("creates schema v2 with foreign keys and no forbidden tables", () => {
     const root = mkdtempSync(path.join(tmpdir(), "pmem-db-"));
     try {
       const paths = getMemoryPaths(root);
@@ -14,10 +14,56 @@ describe("sqlite schema", () => {
       try {
         ensureSchema(db);
         expect(db.pragma("foreign_keys", { simple: true })).toBe(1);
-        expect(db.pragma("user_version", { simple: true })).toBe(1);
+        expect(db.pragma("user_version", { simple: true })).toBe(2);
         const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{ name: string }>).map((row) => row.name);
         expect(REQUIRED_TABLES.every((table) => tables.includes(table))).toBe(true);
         expect(FORBIDDEN_TABLES.some((table) => tables.includes(table))).toBe(false);
+      } finally {
+        db.close();
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("migrates v1 files language check to v2 open language ids", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "pmem-db-v1-"));
+    try {
+      const paths = getMemoryPaths(root);
+      const db = openMemoryDb(paths);
+      try {
+        db.exec(`
+          CREATE TABLE project_state (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL);
+          CREATE TABLE modules (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            owns_json TEXT NOT NULL DEFAULT '[]',
+            must_not_json TEXT NOT NULL DEFAULT '[]',
+            dependencies_json TEXT NOT NULL DEFAULT '[]',
+            risk_level TEXT NOT NULL DEFAULT 'normal',
+            updated_at TEXT NOT NULL
+          );
+          CREATE TABLE files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            path TEXT NOT NULL UNIQUE,
+            language TEXT CHECK (language IS NULL OR language IN ('typescript', 'javascript')),
+            module_id TEXT REFERENCES modules(id) ON UPDATE CASCADE ON DELETE SET NULL,
+            hash TEXT NOT NULL,
+            size_bytes INTEGER NOT NULL DEFAULT 0,
+            line_count INTEGER NOT NULL DEFAULT 0,
+            is_test INTEGER NOT NULL DEFAULT 0,
+            is_generated INTEGER NOT NULL DEFAULT 0,
+            last_indexed_at TEXT NOT NULL
+          );
+          PRAGMA user_version = 1;
+        `);
+        ensureSchema(db);
+        expect(db.pragma("user_version", { simple: true })).toBe(2);
+        expect(() =>
+          db
+            .prepare("INSERT INTO files(path, language, hash, last_indexed_at, analysis_json) VALUES (?, ?, ?, ?, ?)")
+            .run("src/app.py", "python", "hash", "2026-01-01T00:00:00.000Z", "{}")
+        ).not.toThrow();
       } finally {
         db.close();
       }

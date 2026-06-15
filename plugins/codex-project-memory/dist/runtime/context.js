@@ -1,7 +1,7 @@
 import { findProjectRoot } from "./project-locator.js";
 import { getMemoryPaths } from "./memory-paths.js";
 import { loadProjectConfig } from "./config-loader.js";
-import { openMemoryDb } from "../store/sqlite.js";
+import { ensureSchema, openMemoryDb } from "../store/sqlite.js";
 export function resolveRuntimeContext(options = {}) {
     const root = findProjectRoot(options.cwd);
     const memoryPaths = getMemoryPaths(root.root);
@@ -13,6 +13,7 @@ export function resolveRuntimeContext(options = {}) {
     };
     if (options.openDb) {
         ctx.db = openMemoryDb(memoryPaths);
+        ensureSchema(ctx.db);
     }
     return ctx;
 }

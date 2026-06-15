@@ -1,5 +1,6 @@
 import { Node, Project, type ClassDeclaration, type SourceFile } from "ts-morph";
 import { hashContent } from "./hash.js";
+import { buildLanguageCapability } from "./language.js";
 import { inferNestRoutes } from "./route-indexer.js";
 import type { AstIndexOptions, AstIndexResult, ImportExportEdgeInput, ScannedFile, SymbolRecord, WarningRecordInput } from "../shared/types.js";
 
@@ -22,7 +23,24 @@ export function indexFileAst(absPath: string, file: ScannedFile, options: AstInd
     const symbols = extractSymbolsFromSourceFile(sourceFile, options.fileId);
     const imports = extractImportExportEdges(sourceFile);
     const routes = inferNestRoutes(sourceFile, symbols).map((route) => ({ ...route, moduleId: options.moduleId ?? undefined }));
-    return { file: indexedFile, symbols, imports, routes, testLinks: [], warnings: [] };
+    return {
+      file: indexedFile,
+      symbols,
+      imports,
+      routes,
+      testLinks: [],
+      warnings: [],
+      capability: buildLanguageCapability(file.language, {
+        parser: "ts-morph",
+        tier: "deep",
+        symbols: true,
+        dependencies: true,
+        tests: true,
+        routes: true,
+        diagnostics: true,
+        toolStatus: "available"
+      })
+    };
   } catch (error) {
     const warning: WarningRecordInput = {
       warningType: "parse_error",
@@ -33,7 +51,25 @@ export function indexFileAst(absPath: string, file: ScannedFile, options: AstInd
       source: "parser",
       confidence: 1
     };
-    return { file: indexedFile, symbols: [], imports: [], routes: [], testLinks: [], warnings: [warning] };
+    return {
+      file: indexedFile,
+      symbols: [],
+      imports: [],
+      routes: [],
+      testLinks: [],
+      warnings: [warning],
+      capability: buildLanguageCapability(file.language, {
+        parser: "ts-morph",
+        tier: "fallback",
+        symbols: false,
+        dependencies: false,
+        tests: false,
+        routes: false,
+        diagnostics: false,
+        toolStatus: "failed",
+        degradedReason: "parse_error"
+      })
+    };
   }
 }
 

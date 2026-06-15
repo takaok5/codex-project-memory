@@ -2,10 +2,11 @@ import { existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { PmemError } from "../shared/errors.js";
 import { nowIso } from "../shared/time.js";
-import type { ImportExportEdgeInput, IndexOptions, IndexResult, RuntimeContext, SymbolRecord, WarningRecordInput } from "../shared/types.js";
+import type { ImportExportEdgeInput, IndexOptions, IndexResult, RouteRecordInput, RuntimeContext, SymbolRecord, WarningRecordInput } from "../shared/types.js";
 import { getFileByPath, listFiles, removeFileRecordCascade, upsertFileRecord } from "../store/file-repository.js";
 import { replaceEdgesForFile } from "../store/edge-repository.js";
-import { listModules, upsertInferredModule } from "../store/module-repository.js";
+import { upsertLanguageCapability } from "../store/language-capability-repository.js";
+import { upsertInferredModule } from "../store/module-repository.js";
 import { markMemoryFresh, setProjectStateValue } from "../store/project-state-repository.js";
 import { replaceRoutesForFile } from "../store/route-repository.js";
 import { searchSymbols, replaceSymbolsForFile } from "../store/symbol-repository.js";
@@ -13,7 +14,9 @@ import { replaceTestLinksForFile } from "../store/test-repository.js";
 import { addWarning, listActiveWarnings, replaceWarningsForFile } from "../store/warning-repository.js";
 import { scanProjectFiles } from "./scan.js";
 import { inferModuleId } from "./module-inference.js";
-import { indexFileAst } from "./ast-indexer.js";
+import { buildLanguageCapability } from "./language.js";
+import { resolveLanguageToolCapability } from "./language-tools.js";
+import { indexScannedFile } from "./universal-indexer.js";
 import { resolveSymbolEdges } from "./dependency-graph.js";
 import { inferTestTargets } from "./test-adjacency.js";
 import type { MemoryDb } from "../store/sqlite.js";
@@ -31,8 +34,9 @@ export async function indexProject(ctx: RuntimeContext, options: IndexOptions = 
   let deletedFiles = 0;
   let warningCount = 0;
   const pendingImports: ImportExportEdgeInput[] = [];
-  const pendingRoutes: Array<{ fileId: number; routes: ReturnType<typeof indexFileAst>["routes"] }> = [];
+  const pendingRoutes: Array<{ fileId: number; routes: RouteRecordInput[] }> = [];
   const touchedFileIds = new Set<number>();
+  const capabilityByLanguage = new Map<string, ReturnType<typeof resolveLanguageToolCapability>>();
 
   for (const oldFile of existing) {
     if (!scannedPaths.has(oldFile.path)) {
@@ -63,21 +67,49 @@ export async function indexProject(ctx: RuntimeContext, options: IndexOptions = 
     touchedFileIds.add(fileId);
     if (scannedFile.sizeBytes > ctx.config.scan.maxFileBytes) {
       const warning = fileTooLargeWarning(fileId, moduleId, scannedFile.path);
+      const capability = buildLanguageCapability(scannedFile.language, {
+        parser: "skipped",
+        tier: "fallback",
+        symbols: false,
+        dependencies: false,
+        tests: scannedFile.isTest,
+        routes: false,
+        diagnostics: false,
+        toolStatus: "disabled",
+        degradedReason: "file_too_large"
+      });
+      const resolvedCapability = resolveCapabilityForRun(ctx, capabilityByLanguage, scannedFile.language, capability);
+      upsertFileRecord(db, {
+        path: scannedFile.path,
+        language: scannedFile.language,
+        moduleId,
+        hash: scannedFile.hash,
+        sizeBytes: scannedFile.sizeBytes,
+        lineCount: 0,
+        isTest: scannedFile.isTest,
+        isGenerated: scannedFile.isGenerated,
+        lastIndexedAt: nowIso(),
+        analysis: resolvedCapability
+      });
+      upsertLanguageCapability(db, resolvedCapability);
       replaceSymbolsForFile(db, fileId, []);
       replaceWarningsForFile(db, fileId, "indexer", [warning]);
       warningCount += 1;
       indexedFiles += 1;
       continue;
     }
-    const ast = indexFileAst(scannedFile.absPath, scannedFile, { fileId, moduleId });
+    const ast = indexScannedFile(scannedFile.absPath, scannedFile, { fileId, moduleId });
+    if (ast.capability) {
+      const resolvedCapability = resolveCapabilityForRun(ctx, capabilityByLanguage, scannedFile.language, ast.capability);
+      upsertFileRecord(db, { ...ast.file, id: fileId, analysis: resolvedCapability });
+      upsertLanguageCapability(db, resolvedCapability);
+    }
     replaceSymbolsForFile(db, fileId, ast.symbols);
-    const symbolRows = searchSymbols(db, { filePath: scannedFile.path });
     pendingImports.push(...ast.imports.map((item) => ({ ...item, fromFileId: fileId })));
     pendingRoutes.push({ fileId, routes: ast.routes });
     replaceWarningsForFile(db, fileId, "parser", ast.warnings.filter((warning) => warning.source === "parser"));
     warningCount += ast.warnings.length;
     indexedFiles += 1;
-    void symbolRows;
   }
 
   const filesAfterSymbols = listFiles(db);
@@ -115,7 +147,7 @@ export async function indexProject(ctx: RuntimeContext, options: IndexOptions = 
   }
 
   markMemoryFresh(db, nowIso());
-  setProjectStateValue(db, "indexer_version", "0.2.0");
+  setProjectStateValue(db, "indexer_version", "0.3.0");
   return {
     scannedFiles: scanned.length,
     indexedFiles,
@@ -124,6 +156,22 @@ export async function indexProject(ctx: RuntimeContext, options: IndexOptions = 
     warningCount: listActiveWarnings(db).length,
     status: "fresh"
   };
+}
+
+function resolveCapabilityForRun(
+  ctx: RuntimeContext,
+  cache: Map<string, ReturnType<typeof resolveLanguageToolCapability>>,
+  language: string | null,
+  capability: NonNullable<ReturnType<typeof indexScannedFile>["capability"]>
+): ReturnType<typeof resolveLanguageToolCapability> {
+  const key = language ?? "unknown";
+  const cached = cache.get(key);
+  if (cached) {
+    return { ...capability, tool: cached.tool, toolStatus: cached.toolStatus, diagnostics: cached.diagnostics, degradedReason: cached.degradedReason };
+  }
+  const resolved = resolveLanguageToolCapability(ctx, language, capability);
+  cache.set(key, resolved);
+  return resolved;
 }
 
 export async function indexChangedFiles(ctx: RuntimeContext): Promise<IndexResult> {

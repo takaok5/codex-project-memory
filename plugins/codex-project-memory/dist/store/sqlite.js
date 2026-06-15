@@ -23,14 +23,19 @@ export function openMemoryDb(paths) {
 }
 export function ensureSchema(db) {
     try {
+        const currentVersion = Number(db.pragma("user_version", { simple: true }) ?? 0);
+        if ((currentVersion > 0 && currentVersion < 2) || (tableExists(db, "files") && !columnExists(db, "files", "analysis_json"))) {
+            migrateToV2(db);
+        }
         db.transaction(() => {
             db.exec(SCHEMA_SQL);
-            db.pragma("user_version = 1");
+            db.pragma("user_version = 2");
             const now = nowIso();
             const insert = db.prepare("INSERT OR IGNORE INTO project_state(key, value, updated_at) VALUES (?, ?, ?)");
             for (const [key, value] of Object.entries(DEFAULT_PROJECT_STATE)) {
                 insert.run(key, value, now);
             }
+            db.prepare("UPDATE project_state SET value = ?, updated_at = ? WHERE key = ?").run("2", now, "schema_version");
         })();
     }
     catch (error) {
@@ -38,6 +43,47 @@ export function ensureSchema(db) {
             details: { cause: error instanceof Error ? error.message : "unknown" }
         });
     }
+}
+function migrateToV2(db) {
+    if (!tableExists(db, "files") || columnExists(db, "files", "analysis_json")) {
+        return;
+    }
+    const previousForeignKeys = db.pragma("foreign_keys", { simple: true });
+    db.pragma("foreign_keys = OFF");
+    try {
+        db.transaction(() => {
+            db.exec(`
+        CREATE TABLE files_v2 (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          path TEXT NOT NULL UNIQUE,
+          language TEXT,
+          module_id TEXT REFERENCES modules(id) ON UPDATE CASCADE ON DELETE SET NULL,
+          hash TEXT NOT NULL CHECK (length(hash) > 0),
+          size_bytes INTEGER NOT NULL DEFAULT 0 CHECK (size_bytes >= 0),
+          line_count INTEGER NOT NULL DEFAULT 0 CHECK (line_count >= 0),
+          is_test INTEGER NOT NULL DEFAULT 0 CHECK (is_test IN (0, 1)),
+          is_generated INTEGER NOT NULL DEFAULT 0 CHECK (is_generated IN (0, 1)),
+          last_indexed_at TEXT NOT NULL,
+          analysis_json TEXT NOT NULL DEFAULT '{}',
+          CHECK (path NOT LIKE '/%'),
+          CHECK (path NOT LIKE '%\\%')
+        );
+        INSERT INTO files_v2(id, path, language, module_id, hash, size_bytes, line_count, is_test, is_generated, last_indexed_at, analysis_json)
+          SELECT id, path, language, module_id, hash, size_bytes, line_count, is_test, is_generated, last_indexed_at, '{}' FROM files;
+        DROP TABLE files;
+        ALTER TABLE files_v2 RENAME TO files;
+      `);
+        })();
+    }
+    finally {
+        db.pragma(`foreign_keys = ${previousForeignKeys === 1 ? "ON" : "OFF"}`);
+    }
+}
+function tableExists(db, tableName) {
+    return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(tableName));
+}
+function columnExists(db, tableName, columnName) {
+    return db.prepare(`PRAGMA table_info(${tableName})`).all().some((column) => column.name === columnName);
 }
 export function withTransaction(db, fn) {
     return db.transaction(fn)();
@@ -53,11 +99,12 @@ export const REQUIRED_TABLES = [
     "warnings",
     "duplicate_candidates",
     "frames",
-    "retrieval_logs"
+    "retrieval_logs",
+    "language_capabilities"
 ];
 export const FORBIDDEN_TABLES = ["features", "file_edges", "embeddings", "vectors", "source_chunks", "snapshot_records", "remote_sync", "team_memory"];
 const DEFAULT_PROJECT_STATE = {
-    schema_version: "1",
+    schema_version: "2",
     memory_status: "fresh",
     memory_dirty: "false",
     dirty_reason: "",

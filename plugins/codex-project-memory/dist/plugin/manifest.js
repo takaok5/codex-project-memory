@@ -7,7 +7,7 @@ const relativePathSchema = z.string().min(1).refine(isSafeRelativePath, {
 const pluginManifestSchema = z
     .object({
     name: z.literal("codex-project-memory"),
-    version: z.literal("0.2.0"),
+    version: z.literal("0.3.0"),
     description: z.string().min(1),
     author: z.object({ name: z.string().min(1), email: z.string().optional(), url: z.string().url().optional() }).strict(),
     skills: z.literal("./skills/"),

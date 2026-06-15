@@ -2,7 +2,43 @@ import path from "node:path";
 import { normalizePathSeparators } from "../shared/path.js";
 import { getFileByPath, listFiles } from "../store/file-repository.js";
 import { searchSymbols } from "../store/symbol-repository.js";
-const EXTENSIONS = ["", ".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", "/index.ts", "/index.tsx", "/index.js", "/index.jsx", "/index.mts", "/index.cts"];
+const EXTENSIONS = [
+    "",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".mts",
+    ".cts",
+    ".py",
+    ".go",
+    ".java",
+    ".cs",
+    ".php",
+    ".rb",
+    ".rs",
+    ".c",
+    ".h",
+    ".cpp",
+    ".hpp",
+    ".kt",
+    ".swift",
+    ".dart",
+    ".scala",
+    ".r",
+    ".lua",
+    ".ex",
+    ".clj",
+    ".sql",
+    ".html",
+    ".css",
+    "/index.ts",
+    "/index.tsx",
+    "/index.js",
+    "/index.jsx",
+    "/__init__.py",
+    "/mod.rs"
+];
 export function resolveSymbolEdges(db, imports) {
     const edges = [];
     const warnings = [];
@@ -39,7 +75,8 @@ export function resolveSymbolEdges(db, imports) {
 }
 function resolveTargetPath(sourceFilePath, sourceModule, filePaths) {
     const sourceDir = path.posix.dirname(sourceFilePath);
-    const base = normalizePathSeparators(path.posix.normalize(path.posix.join(sourceDir, sourceModule)));
+    const normalizedModule = normalizeModuleSpecifier(sourceModule);
+    const base = normalizePathSeparators(path.posix.normalize(path.posix.join(sourceDir, normalizedModule)));
     for (const extension of EXTENSIONS) {
         const candidate = `${base}${extension}`;
         if (filePaths.has(candidate)) {
@@ -47,6 +84,15 @@ function resolveTargetPath(sourceFilePath, sourceModule, filePaths) {
         }
     }
     return null;
+}
+function normalizeModuleSpecifier(sourceModule) {
+    if (sourceModule.startsWith("./") || sourceModule.startsWith("../")) {
+        return sourceModule;
+    }
+    if (sourceModule.startsWith(".")) {
+        return `./${sourceModule.replace(/^\.+/, "").replaceAll(".", "/")}`;
+    }
+    return sourceModule.replaceAll("\\", "/");
 }
 function unresolvedWarning(fileId, moduleId, sourceModule) {
     return {

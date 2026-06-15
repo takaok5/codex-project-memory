@@ -1,6 +1,7 @@
 import { PmemError } from "../shared/errors.js";
+import { safeJsonParse } from "../shared/json.js";
 import { assertRelativePosix, normalizePathSeparators } from "../shared/path.js";
-import type { FileFilter, IndexedFileRecord } from "../shared/types.js";
+import type { FileFilter, IndexedFileRecord, LanguageCapability } from "../shared/types.js";
 import type { MemoryDb } from "./sqlite.js";
 
 export function upsertFileRecord(db: MemoryDb, file: IndexedFileRecord): number {
@@ -10,8 +11,8 @@ export function upsertFileRecord(db: MemoryDb, file: IndexedFileRecord): number 
   }
   try {
     db.prepare(
-      `INSERT INTO files(path, language, module_id, hash, size_bytes, line_count, is_test, is_generated, last_indexed_at)
-       VALUES (@path, @language, @moduleId, @hash, @sizeBytes, @lineCount, @isTest, @isGenerated, @lastIndexedAt)
+      `INSERT INTO files(path, language, module_id, hash, size_bytes, line_count, is_test, is_generated, last_indexed_at, analysis_json)
+       VALUES (@path, @language, @moduleId, @hash, @sizeBytes, @lineCount, @isTest, @isGenerated, @lastIndexedAt, @analysisJson)
        ON CONFLICT(path) DO UPDATE SET
          language=excluded.language,
          module_id=excluded.module_id,
@@ -20,7 +21,8 @@ export function upsertFileRecord(db: MemoryDb, file: IndexedFileRecord): number 
          line_count=excluded.line_count,
          is_test=excluded.is_test,
          is_generated=excluded.is_generated,
-         last_indexed_at=excluded.last_indexed_at`
+         last_indexed_at=excluded.last_indexed_at,
+         analysis_json=excluded.analysis_json`
     ).run({
       path: normalizedPath,
       language: file.language,
@@ -30,7 +32,8 @@ export function upsertFileRecord(db: MemoryDb, file: IndexedFileRecord): number 
       lineCount: file.lineCount,
       isTest: file.isTest ? 1 : 0,
       isGenerated: file.isGenerated ? 1 : 0,
-      lastIndexedAt: file.lastIndexedAt
+      lastIndexedAt: file.lastIndexedAt,
+      analysisJson: JSON.stringify(file.analysis ?? {})
     });
     return (db.prepare("SELECT id FROM files WHERE path = ?").get(normalizedPath) as { id: number }).id;
   } catch (error) {
@@ -73,7 +76,7 @@ export function removeFileRecordCascade(db: MemoryDb, path: string): void {
 interface DbFileRow {
   id: number;
   path: string;
-  language: "typescript" | "javascript" | null;
+  language: string | null;
   module_id: string | null;
   hash: string;
   size_bytes: number;
@@ -81,6 +84,7 @@ interface DbFileRow {
   is_test: number;
   is_generated: number;
   last_indexed_at: string;
+  analysis_json?: string;
 }
 
 function fromRow(row: DbFileRow): IndexedFileRecord {
@@ -94,6 +98,13 @@ function fromRow(row: DbFileRow): IndexedFileRecord {
     lineCount: row.line_count,
     isTest: row.is_test === 1,
     isGenerated: row.is_generated === 1,
-    lastIndexedAt: row.last_indexed_at
+    lastIndexedAt: row.last_indexed_at,
+    analysis: parseAnalysis(row.analysis_json)
   };
+}
+
+function parseAnalysis(value: string | undefined): LanguageCapability | null {
+  if (!value) return null;
+  const parsed = safeJsonParse<LanguageCapability>(value);
+  return parsed.ok && parsed.value && typeof parsed.value === "object" ? parsed.value : null;
 }

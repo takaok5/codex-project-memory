@@ -1,11 +1,14 @@
 # Codex Project Memory
 
-Local repository memory for Codex. It indexes TypeScript/JavaScript structure into local SQLite, exposes compact MCP tools, and renders deterministic SVG/map frames.
+Local repository memory for Codex. It indexes project structure into local SQLite, exposes compact MCP tools, and renders deterministic SVG/map frames.
 
-## What v0.2 does
+## What v0.3 does
 
 - Stores memory locally under `.codex/memory`.
-- Indexes TypeScript/JavaScript files, symbols, routes, modules, warnings and duplicate candidates.
+- Indexes TypeScript/JavaScript deeply with `ts-morph`.
+- Detects a broad programming-language set and structurally indexes Python, Go, Java, C#, PHP, Ruby, Rust, C/C++, Kotlin, Swift, Shell, Dart, Scala, R, Lua, Elixir, Clojure, SQL, HTML/CSS and additional common languages.
+- Writes explicit language capability flags so fallback/degraded analysis is visible in generated JSON and snapshots.
+- Lazily uses user-space language analyzers from `.codex/memory/cache/language-tools` when available or installable; it never changes global system PATH or installs system packages.
 - Exposes MCP tools: `memory.agent`, `memory.head`, `memory.query`, `memory.duplicates`, `memory.frame`, `memory.refresh`, `memory.diff`.
 - Provides `pmem agent run` as the project-local orchestration entrypoint.
 - Produces deterministic SVG and map JSON. PNG export is best-effort and optional.
@@ -16,13 +19,14 @@ Local repository memory for Codex. It indexes TypeScript/JavaScript structure in
 - Codex with plugin and MCP support.
 - `sharp` is optional. If PNG generation is unavailable, SVG and map JSON remain the required visual outputs.
 
-## What v0.2 does not do
+## What v0.3 does not do
 
 - No embeddings or vector DB.
 - No cloud backend.
 - No dashboard.
 - No direct source-code modifications.
 - No required LLM in the core runtime.
+- No claim that fallback analysis is compiler-equivalent for every language; capability flags identify the tier per language.
 
 ## Development
 
@@ -110,7 +114,7 @@ This repository includes:
 
 Codex app plugin validation does not currently support plugin-declared hooks. The plugin uses a supported replacement: implicit skill invocation plus MCP tools. On project work, Codex should call `memory.head`, use `memory.query` before edits, use `memory.duplicates` before new artifacts, and call `memory.refresh` after source changes.
 
-In v0.2 the preferred entrypoint is `memory.agent`, or the CLI equivalent:
+In v0.3 the preferred entrypoint is `memory.agent`, or the CLI equivalent:
 
 ```bash
 pmem agent run "<intent>" --json

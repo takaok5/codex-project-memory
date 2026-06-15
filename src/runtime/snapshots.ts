@@ -15,11 +15,11 @@ export function rotateSnapshotsForWrite(ctx: RuntimeContext): void {
 export function createMemorySnapshot(ctx: RuntimeContext, options: { ref?: "latest" | "previous"; write?: boolean } = {}): MemorySnapshot {
   const db = ctx.db as MemoryDb;
   const files = db
-    .prepare("SELECT path, hash, module_id FROM files ORDER BY path ASC")
+    .prepare("SELECT path, hash, module_id, language, analysis_json FROM files ORDER BY path ASC")
     .all()
     .map((row) => {
-      const item = row as { path: string; hash: string; module_id: string | null };
-      return { path: item.path, hash: item.hash, moduleId: item.module_id };
+      const item = row as { path: string; hash: string; module_id: string | null; language: string | null; analysis_json: string };
+      return { path: item.path, hash: item.hash, moduleId: item.module_id, language: item.language, tier: readTier(item.analysis_json) };
     });
   const symbols = db
     .prepare(
@@ -60,7 +60,7 @@ export function createMemorySnapshot(ctx: RuntimeContext, options: { ref?: "late
   const snapshot: MemorySnapshot = {
     version: 1,
     createdAt: nowIso(),
-    schemaVersion: "1",
+    schemaVersion: "2",
     configHash: canonicalJsonHash(ctx.config),
     files,
     symbols,
@@ -123,6 +123,15 @@ function emptyDiff(): Omit<DiffOutput, "from" | "to"> {
 
 function warningKey(warning: Record<string, unknown>): string {
   return `${warning.warningType ?? ""}:${warning.filePath ?? ""}:${warning.fingerprint ?? ""}`;
+}
+
+function readTier(analysisJson: string): "deep" | "structural" | "fallback" | null {
+  try {
+    const parsed = JSON.parse(analysisJson) as { tier?: unknown };
+    return parsed.tier === "deep" || parsed.tier === "structural" || parsed.tier === "fallback" ? parsed.tier : null;
+  } catch {
+    return null;
+  }
 }
 
 function snapshotAbs(ctx: RuntimeContext, ref: SnapshotRef): string {

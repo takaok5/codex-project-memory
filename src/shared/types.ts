@@ -15,7 +15,26 @@ export type MemoryEvent =
   | "mark_error"
   | "doctor_ok";
 
-export type LanguageKind = "typescript" | "javascript";
+export type LanguageId = string;
+export type LanguageKind = LanguageId;
+
+export type LanguageAnalysisTier = "deep" | "structural" | "fallback";
+export type LanguageToolStatus = "available" | "missing" | "installing" | "failed" | "disabled" | "unsupported";
+
+export interface LanguageCapability {
+  language: LanguageId;
+  displayName: string;
+  tier: LanguageAnalysisTier;
+  parser: string;
+  symbols: boolean;
+  dependencies: boolean;
+  tests: boolean;
+  routes: boolean;
+  diagnostics: boolean;
+  tool: string | null;
+  toolStatus: LanguageToolStatus;
+  degradedReason: string | null;
+}
 
 export const ARTIFACT_KINDS = [
   "service",
@@ -190,8 +209,13 @@ export interface ProjectMemoryConfig {
   scan: {
     include: string[];
     exclude: string[];
-    languages: LanguageKind[];
+    languages: LanguageId[];
     maxFileBytes: number;
+  };
+  languageTools?: {
+    autoInstall: boolean;
+    cachePath: string;
+    installTimeoutMs: number;
   };
   modules: Array<{
     id: string;
@@ -248,7 +272,7 @@ export interface ResolveContextOptions {
 export interface IndexedFileRecord {
   id?: number;
   path: string;
-  language: LanguageKind | null;
+  language: LanguageId | null;
   moduleId: string | null;
   hash: string;
   sizeBytes: number;
@@ -256,11 +280,12 @@ export interface IndexedFileRecord {
   isTest: boolean;
   isGenerated: boolean;
   lastIndexedAt: string;
+  analysis?: LanguageCapability | null;
 }
 
 export interface FileFilter {
   moduleId?: string;
-  language?: LanguageKind;
+  language?: LanguageId;
   isTest?: boolean;
   limit?: number;
 }
@@ -270,7 +295,7 @@ export interface InitOutput {
   memoryRoot: ".codex/memory";
   config: ".codex/memory/project-memory.config.json";
   db: ".codex/memory/memory.db";
-  schemaVersion: 1;
+  schemaVersion: 2;
   created: string[];
   skipped: string[];
 }
@@ -426,7 +451,8 @@ export interface SymbolSearchQuery {
 export interface ScannedFile {
   path: string;
   absPath: string;
-  language: LanguageKind | null;
+  language: LanguageId | null;
+  displayName: string | null;
   sizeBytes: number;
   hash: string;
   isTest: boolean;
@@ -445,6 +471,7 @@ export interface AstIndexResult {
   routes: RouteRecordInput[];
   testLinks: TestLinkRecord[];
   warnings: WarningRecordInput[];
+  capability?: LanguageCapability;
 }
 
 export interface IndexOptions {
@@ -665,6 +692,7 @@ export interface FrameRecord {
 export interface NormalizedGraph {
   version: 1;
   project: { name: string; status: MemoryStatus; generatedAt?: string };
+  languageCapabilities: JsonObject[];
   modules: JsonObject[];
   files: JsonObject[];
   symbols: JsonObject[];
@@ -774,9 +802,9 @@ export interface FrameOutput extends CliFramePath {
 export interface MemorySnapshot {
   version: 1;
   createdAt: string;
-  schemaVersion: "1" | null;
+  schemaVersion: "1" | "2" | null;
   configHash: string | null;
-  files: Array<{ path: string; hash: string; moduleId: string | null }>;
+  files: Array<{ path: string; hash: string; moduleId: string | null; language?: string | null; tier?: LanguageAnalysisTier | null }>;
   symbols: Array<{ fqName: string; kind: string; filePath: string; signatureHash?: string; bodyHash?: string }>;
   warnings: Array<{ warningType: string; severity: WarningSeverity; filePath?: string; fingerprint: string }>;
   frames: Array<{ id: FrameName; svgPath: string; pngPath: string | null; mapPath: string; sourceHash: string }>;

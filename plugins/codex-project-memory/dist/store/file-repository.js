@@ -1,4 +1,5 @@
 import { PmemError } from "../shared/errors.js";
+import { safeJsonParse } from "../shared/json.js";
 import { assertRelativePosix, normalizePathSeparators } from "../shared/path.js";
 export function upsertFileRecord(db, file) {
     const normalizedPath = assertRelativePosix(normalizePathSeparators(file.path));
@@ -6,8 +7,8 @@ export function upsertFileRecord(db, file) {
         throw new PmemError("VALIDATION_ERROR", "File hash is required.");
     }
     try {
-        db.prepare(`INSERT INTO files(path, language, module_id, hash, size_bytes, line_count, is_test, is_generated, last_indexed_at)
-       VALUES (@path, @language, @moduleId, @hash, @sizeBytes, @lineCount, @isTest, @isGenerated, @lastIndexedAt)
+        db.prepare(`INSERT INTO files(path, language, module_id, hash, size_bytes, line_count, is_test, is_generated, last_indexed_at, analysis_json)
+       VALUES (@path, @language, @moduleId, @hash, @sizeBytes, @lineCount, @isTest, @isGenerated, @lastIndexedAt, @analysisJson)
        ON CONFLICT(path) DO UPDATE SET
          language=excluded.language,
          module_id=excluded.module_id,
@@ -16,7 +17,8 @@ export function upsertFileRecord(db, file) {
          line_count=excluded.line_count,
          is_test=excluded.is_test,
          is_generated=excluded.is_generated,
-         last_indexed_at=excluded.last_indexed_at`).run({
+         last_indexed_at=excluded.last_indexed_at,
+         analysis_json=excluded.analysis_json`).run({
             path: normalizedPath,
             language: file.language,
             moduleId: file.moduleId,
@@ -25,7 +27,8 @@ export function upsertFileRecord(db, file) {
             lineCount: file.lineCount,
             isTest: file.isTest ? 1 : 0,
             isGenerated: file.isGenerated ? 1 : 0,
-            lastIndexedAt: file.lastIndexedAt
+            lastIndexedAt: file.lastIndexedAt,
+            analysisJson: JSON.stringify(file.analysis ?? {})
         });
         return db.prepare("SELECT id FROM files WHERE path = ?").get(normalizedPath).id;
     }
@@ -73,7 +76,14 @@ function fromRow(row) {
         lineCount: row.line_count,
         isTest: row.is_test === 1,
         isGenerated: row.is_generated === 1,
-        lastIndexedAt: row.last_indexed_at
+        lastIndexedAt: row.last_indexed_at,
+        analysis: parseAnalysis(row.analysis_json)
     };
+}
+function parseAnalysis(value) {
+    if (!value)
+        return null;
+    const parsed = safeJsonParse(value);
+    return parsed.ok && parsed.value && typeof parsed.value === "object" ? parsed.value : null;
 }
 //# sourceMappingURL=file-repository.js.map

@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS modules (
 CREATE TABLE IF NOT EXISTS files (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   path TEXT NOT NULL UNIQUE,
-  language TEXT CHECK (language IS NULL OR language IN ('typescript', 'javascript')),
+  language TEXT,
   module_id TEXT REFERENCES modules(id) ON UPDATE CASCADE ON DELETE SET NULL,
   hash TEXT NOT NULL CHECK (length(hash) > 0),
   size_bytes INTEGER NOT NULL DEFAULT 0 CHECK (size_bytes >= 0),
@@ -29,8 +29,25 @@ CREATE TABLE IF NOT EXISTS files (
   is_test INTEGER NOT NULL DEFAULT 0 CHECK (is_test IN (0, 1)),
   is_generated INTEGER NOT NULL DEFAULT 0 CHECK (is_generated IN (0, 1)),
   last_indexed_at TEXT NOT NULL,
+  analysis_json TEXT NOT NULL DEFAULT '{}',
   CHECK (path NOT LIKE '/%'),
   CHECK (path NOT LIKE '%\%')
+);
+
+CREATE TABLE IF NOT EXISTS language_capabilities (
+  language TEXT PRIMARY KEY,
+  display_name TEXT NOT NULL,
+  tier TEXT NOT NULL CHECK (tier IN ('deep', 'structural', 'fallback')),
+  parser TEXT NOT NULL,
+  symbols INTEGER NOT NULL CHECK (symbols IN (0, 1)),
+  dependencies INTEGER NOT NULL CHECK (dependencies IN (0, 1)),
+  tests INTEGER NOT NULL CHECK (tests IN (0, 1)),
+  routes INTEGER NOT NULL CHECK (routes IN (0, 1)),
+  diagnostics INTEGER NOT NULL CHECK (diagnostics IN (0, 1)),
+  tool TEXT,
+  tool_status TEXT NOT NULL CHECK (tool_status IN ('available', 'missing', 'installing', 'failed', 'disabled', 'unsupported')),
+  degraded_reason TEXT,
+  updated_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS symbols (
@@ -137,6 +154,7 @@ CREATE TABLE IF NOT EXISTS retrieval_logs (
 CREATE INDEX IF NOT EXISTS idx_files_module_id ON files(module_id);
 CREATE INDEX IF NOT EXISTS idx_files_hash ON files(hash);
 CREATE INDEX IF NOT EXISTS idx_files_language ON files(language);
+CREATE INDEX IF NOT EXISTS idx_language_capabilities_tier ON language_capabilities(tier);
 CREATE INDEX IF NOT EXISTS idx_symbols_file_id ON symbols(file_id);
 CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
 CREATE INDEX IF NOT EXISTS idx_symbols_fq_name ON symbols(fq_name);

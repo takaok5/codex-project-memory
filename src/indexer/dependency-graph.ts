@@ -5,7 +5,43 @@ import { getFileByPath, listFiles } from "../store/file-repository.js";
 import { searchSymbols } from "../store/symbol-repository.js";
 import type { MemoryDb } from "../store/sqlite.js";
 
-const EXTENSIONS = ["", ".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", "/index.ts", "/index.tsx", "/index.js", "/index.jsx", "/index.mts", "/index.cts"];
+const EXTENSIONS = [
+  "",
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".mts",
+  ".cts",
+  ".py",
+  ".go",
+  ".java",
+  ".cs",
+  ".php",
+  ".rb",
+  ".rs",
+  ".c",
+  ".h",
+  ".cpp",
+  ".hpp",
+  ".kt",
+  ".swift",
+  ".dart",
+  ".scala",
+  ".r",
+  ".lua",
+  ".ex",
+  ".clj",
+  ".sql",
+  ".html",
+  ".css",
+  "/index.ts",
+  "/index.tsx",
+  "/index.js",
+  "/index.jsx",
+  "/__init__.py",
+  "/mod.rs"
+];
 
 export function resolveSymbolEdges(db: MemoryDb, imports: ImportExportEdgeInput[]): { edges: ResolvedSymbolEdgeInput[]; warnings: WarningRecordInput[] } {
   const edges: ResolvedSymbolEdgeInput[] = [];
@@ -46,7 +82,8 @@ export function resolveSymbolEdges(db: MemoryDb, imports: ImportExportEdgeInput[
 
 function resolveTargetPath(sourceFilePath: string, sourceModule: string, filePaths: Set<string>): string | null {
   const sourceDir = path.posix.dirname(sourceFilePath);
-  const base = normalizePathSeparators(path.posix.normalize(path.posix.join(sourceDir, sourceModule)));
+  const normalizedModule = normalizeModuleSpecifier(sourceModule);
+  const base = normalizePathSeparators(path.posix.normalize(path.posix.join(sourceDir, normalizedModule)));
   for (const extension of EXTENSIONS) {
     const candidate = `${base}${extension}`;
     if (filePaths.has(candidate)) {
@@ -54,6 +91,16 @@ function resolveTargetPath(sourceFilePath: string, sourceModule: string, filePat
     }
   }
   return null;
+}
+
+function normalizeModuleSpecifier(sourceModule: string): string {
+  if (sourceModule.startsWith("./") || sourceModule.startsWith("../")) {
+    return sourceModule;
+  }
+  if (sourceModule.startsWith(".")) {
+    return `./${sourceModule.replace(/^\.+/, "").replaceAll(".", "/")}`;
+  }
+  return sourceModule.replaceAll("\\", "/");
 }
 
 function unresolvedWarning(fileId: number | undefined, moduleId: string | undefined, sourceModule: string): WarningRecordInput {

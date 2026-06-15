@@ -1,6 +1,6 @@
 {
   "name": "codex-project-memory",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Local repository memory for Codex with SQLite, deterministic frames, MCP tools and an implicit skill lifecycle.",
   "author": {
     "name": "Project Memory Maintainers"

@@ -11,11 +11,11 @@ export function rotateSnapshotsForWrite(ctx) {
 export function createMemorySnapshot(ctx, options = {}) {
     const db = ctx.db;
     const files = db
-        .prepare("SELECT path, hash, module_id FROM files ORDER BY path ASC")
+        .prepare("SELECT path, hash, module_id, language, analysis_json FROM files ORDER BY path ASC")
         .all()
         .map((row) => {
         const item = row;
-        return { path: item.path, hash: item.hash, moduleId: item.module_id };
+        return { path: item.path, hash: item.hash, moduleId: item.module_id, language: item.language, tier: readTier(item.analysis_json) };
     });
     const symbols = db
         .prepare(`SELECT s.fq_name, s.kind, f.path AS file_path, s.signature_hash, s.body_hash
@@ -52,7 +52,7 @@ export function createMemorySnapshot(ctx, options = {}) {
     const snapshot = {
         version: 1,
         createdAt: nowIso(),
-        schemaVersion: "1",
+        schemaVersion: "2",
         configHash: canonicalJsonHash(ctx.config),
         files,
         symbols,
@@ -111,6 +111,15 @@ function emptyDiff() {
 }
 function warningKey(warning) {
     return `${warning.warningType ?? ""}:${warning.filePath ?? ""}:${warning.fingerprint ?? ""}`;
+}
+function readTier(analysisJson) {
+    try {
+        const parsed = JSON.parse(analysisJson);
+        return parsed.tier === "deep" || parsed.tier === "structural" || parsed.tier === "fallback" ? parsed.tier : null;
+    }
+    catch {
+        return null;
+    }
 }
 function snapshotAbs(ctx, ref) {
     const name = ref === "previous" || ref === "latest" ? `${ref}.snapshot.json` : String(ref).replaceAll("\\", "/");
