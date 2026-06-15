@@ -2,6 +2,7 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { cmdDiagnostics } from "../../src/cli/commands/diagnostics.js";
 import { cmdDiff } from "../../src/cli/commands/diff.js";
 import { cmdDuplicates } from "../../src/cli/commands/duplicates.js";
 import { cmdFrame } from "../../src/cli/commands/frame.js";
@@ -77,7 +78,7 @@ const FIXTURES: FixtureExpectation[] = [
 
 describe("universal language fixtures", () => {
   for (const expectation of FIXTURES) {
-    it(`runs the v0.3 public command sequence for ${expectation.fixture}`, async () => {
+    it(`runs the v0.4 public command sequence for ${expectation.fixture}`, async () => {
       const root = copyFixture(expectation.fixture);
       try {
         const outputs: unknown[] = [];
@@ -90,6 +91,13 @@ describe("universal language fixtures", () => {
         outputs.push(index);
         expect(index.ok).toBe(true);
         expect(index.data?.files.indexed).toBeGreaterThan(0);
+
+        const diagnostics = await cmdDiagnostics({ cwd: root, install: false });
+        outputs.push(diagnostics);
+        expect(diagnostics.ok).toBe(true);
+        expect(diagnostics.data?.languages).toEqual(expectation.languages);
+        expect(diagnostics.data?.summary.total).toBeGreaterThan(0);
+        expect(diagnostics.data?.summary.degradedLanguages).toEqual(expectation.languages);
 
         const paths = getMemoryPaths(root);
         let warningsBeforeRefresh = 0;
@@ -137,12 +145,18 @@ describe("universal language fixtures", () => {
         outputs.push(await cmdDiff({ cwd: root }));
 
         const capabilitiesJson = readJson(path.join(root, ".codex/memory/generated/language-capabilities.json")) as Array<{ language: string }>;
+        const diagnosticsJson = readJson(path.join(root, ".codex/memory/generated/diagnostics.json")) as Array<{ language: string; filePath: string; severity: string }>;
         const currentMap = readJson(path.join(root, ".codex/memory/current.map.json")) as { languageCapabilities: Array<{ language: string }> };
-        const latestSnapshot = readJson(path.join(root, ".codex/memory/snapshots/latest.snapshot.json")) as { languageCapabilities: Array<{ language: string }> };
+        const latestSnapshot = readJson(path.join(root, ".codex/memory/snapshots/latest.snapshot.json")) as {
+          languageCapabilities: Array<{ language: string }>;
+          diagnostics: Array<{ language: string; filePath: string; severity: string }>;
+        };
         expect(capabilitiesJson.map((item) => item.language).sort()).toEqual(expectation.languages);
+        expect(diagnosticsJson.map((item) => item.language).sort()).toEqual(expect.arrayContaining(expectation.languages));
         expect(currentMap.languageCapabilities.map((item) => item.language).sort()).toEqual(expectation.languages);
         expect(latestSnapshot.languageCapabilities.map((item) => item.language).sort()).toEqual(expectation.languages);
-        outputs.push(capabilitiesJson, currentMap, latestSnapshot);
+        expect(latestSnapshot.diagnostics.map((item) => item.language).sort()).toEqual(expect.arrayContaining(expectation.languages));
+        outputs.push(capabilitiesJson, diagnosticsJson, currentMap, latestSnapshot);
 
         const dbAfterRefresh = openMemoryDb(paths);
         try {

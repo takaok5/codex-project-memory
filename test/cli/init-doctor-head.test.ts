@@ -21,7 +21,7 @@ describe("init/doctor/head CLI commands", () => {
           memoryRoot: ".codex/memory",
           config: ".codex/memory/project-memory.config.json",
           db: ".codex/memory/memory.db",
-          schemaVersion: 2
+          schemaVersion: 3
         }
       });
       expect(init.data?.created).toContain(".codex/memory/memory.db");
@@ -30,10 +30,10 @@ describe("init/doctor/head CLI commands", () => {
         ok: true,
         data: {
           overallStatus: "ok",
-          schema: { userVersion: 2, schemaVersion: "2", foreignKeysEnabled: true, requiredTablesPresent: true, forbiddenTables: [] }
+          schema: { userVersion: 3, schemaVersion: "3", foreignKeysEnabled: true, requiredTablesPresent: true, forbiddenTables: [] }
         }
       });
-      await expect(cmdHead({ cwd: root })).resolves.toMatchObject({ ok: true, data: { status: "fresh", schemaVersion: "2", memoryDirty: false } });
+      await expect(cmdHead({ cwd: root })).resolves.toMatchObject({ ok: true, data: { status: "fresh", schemaVersion: "3", memoryDirty: false } });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

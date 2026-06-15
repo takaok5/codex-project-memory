@@ -49,6 +49,7 @@ pmem agent run "<intent>" --json
 pmem agent run "<intent>" --phase pre_create --kind service --module <moduleId> --name <ProposedName> --json
 pmem head --json
 pmem query "<intent>" --json
+pmem diagnostics --no-install --json
 pmem duplicates --kind service --module <moduleId> --name <ProposedName> "<intent>" --json
 pmem frame current --json
 pmem refresh --changed-only --json

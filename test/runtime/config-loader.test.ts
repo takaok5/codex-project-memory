@@ -11,7 +11,7 @@ describe("config loader", () => {
       schemaVersion: 1,
       projectName: "demo",
       scan: { include: ["**/*"], languages: ["*"], maxFileBytes: 524288 },
-      languageTools: { autoInstall: true, cachePath: ".codex/memory/cache/language-tools", installTimeoutMs: 120000 },
+      languageTools: { autoInstall: true, cachePath: ".codex/memory/cache/language-tools", installTimeoutMs: 120000, runTimeoutMs: 30000 },
       render: { png: true, maxModules: 40, maxWarnings: 20 },
       agents: { maxFiles: 8, maxSymbols: 12, maxWarnings: 8 }
     });

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { canonicalJsonHash, safeJsonParse, writeJsonFileAtomic } from "../shared/json.js";
 import { nowIso } from "../shared/time.js";
 import type { DiffOutput, FrameName, MemorySnapshot, RuntimeContext, SnapshotRef, WarningSeverity } from "../shared/types.js";
+import { listDiagnostics } from "../store/diagnostic-repository.js";
 import { listLanguageCapabilities } from "../store/language-capability-repository.js";
 import type { MemoryDb } from "../store/sqlite.js";
 
@@ -58,12 +59,20 @@ export function createMemorySnapshot(ctx: RuntimeContext, options: { ref?: "late
       const item = row as { id: string; svg_path: string; png_path: string | null; map_path: string; source_hash: string };
       return { id: item.id as FrameName, svgPath: item.svg_path, pngPath: item.png_path, mapPath: item.map_path, sourceHash: item.source_hash };
     });
+  const diagnostics = listDiagnostics(db, { limit: 500 }).map((diagnostic) => ({
+    language: diagnostic.language,
+    filePath: diagnostic.filePath,
+    severity: diagnostic.severity,
+    code: diagnostic.code,
+    fingerprint: diagnostic.fingerprint
+  }));
   const snapshot: MemorySnapshot = {
     version: 1,
     createdAt: nowIso(),
-    schemaVersion: "2",
+    schemaVersion: "3",
     configHash: canonicalJsonHash(ctx.config),
     languageCapabilities: listLanguageCapabilities(db).map((item) => ({ ...item })),
+    diagnostics,
     files,
     symbols,
     warnings,

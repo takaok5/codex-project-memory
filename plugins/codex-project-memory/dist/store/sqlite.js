@@ -27,21 +27,59 @@ export function ensureSchema(db) {
         if ((currentVersion > 0 && currentVersion < 2) || (tableExists(db, "files") && !columnExists(db, "files", "analysis_json"))) {
             migrateToV2(db);
         }
+        if (currentVersion > 0 && currentVersion < 3) {
+            migrateToV3(db);
+        }
         db.transaction(() => {
             db.exec(SCHEMA_SQL);
-            db.pragma("user_version = 2");
+            db.pragma("user_version = 3");
             const now = nowIso();
             const insert = db.prepare("INSERT OR IGNORE INTO project_state(key, value, updated_at) VALUES (?, ?, ?)");
             for (const [key, value] of Object.entries(DEFAULT_PROJECT_STATE)) {
                 insert.run(key, value, now);
             }
-            db.prepare("UPDATE project_state SET value = ?, updated_at = ? WHERE key = ?").run("2", now, "schema_version");
+            db.prepare("UPDATE project_state SET value = ?, updated_at = ? WHERE key = ?").run("3", now, "schema_version");
         })();
     }
     catch (error) {
         throw new PmemError("DB_ERROR", "Project memory database error.", {
             details: { cause: error instanceof Error ? error.message : "unknown" }
         });
+    }
+}
+function migrateToV3(db) {
+    if (!tableExists(db, "warnings") || warningsSourceSupportsDiagnostic(db)) {
+        return;
+    }
+    const previousForeignKeys = db.pragma("foreign_keys", { simple: true });
+    db.pragma("foreign_keys = OFF");
+    try {
+        db.transaction(() => {
+            db.exec(`
+        CREATE TABLE warnings_v3 (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          warning_type TEXT NOT NULL,
+          severity TEXT NOT NULL CHECK (severity IN ('info', 'warning', 'critical')),
+          module_id TEXT REFERENCES modules(id) ON UPDATE CASCADE ON DELETE SET NULL,
+          file_id INTEGER REFERENCES files(id) ON DELETE CASCADE,
+          symbol_id INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
+          message TEXT NOT NULL,
+          recommendation TEXT,
+          source TEXT NOT NULL DEFAULT 'inferred' CHECK (source IN ('parser', 'indexer', 'renderer', 'agent', 'mcp', 'config', 'inferred', 'diagnostic')),
+          confidence REAL NOT NULL DEFAULT 1.0 CHECK (confidence >= 0.0 AND confidence <= 1.0),
+          fingerprint TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          resolved_at TEXT
+        );
+        INSERT INTO warnings_v3(id, warning_type, severity, module_id, file_id, symbol_id, message, recommendation, source, confidence, fingerprint, created_at, resolved_at)
+          SELECT id, warning_type, severity, module_id, file_id, symbol_id, message, recommendation, source, confidence, fingerprint, created_at, resolved_at FROM warnings;
+        DROP TABLE warnings;
+        ALTER TABLE warnings_v3 RENAME TO warnings;
+      `);
+        })();
+    }
+    finally {
+        db.pragma(`foreign_keys = ${previousForeignKeys === 1 ? "ON" : "OFF"}`);
     }
 }
 function migrateToV2(db) {
@@ -85,6 +123,10 @@ function tableExists(db, tableName) {
 function columnExists(db, tableName, columnName) {
     return db.prepare(`PRAGMA table_info(${tableName})`).all().some((column) => column.name === columnName);
 }
+function warningsSourceSupportsDiagnostic(db) {
+    const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'warnings'").get();
+    return Boolean(row?.sql?.includes("'diagnostic'"));
+}
 export function withTransaction(db, fn) {
     return db.transaction(fn)();
 }
@@ -100,11 +142,12 @@ export const REQUIRED_TABLES = [
     "duplicate_candidates",
     "frames",
     "retrieval_logs",
-    "language_capabilities"
+    "language_capabilities",
+    "diagnostics"
 ];
 export const FORBIDDEN_TABLES = ["features", "file_edges", "embeddings", "vectors", "source_chunks", "snapshot_records", "remote_sync", "team_memory"];
 const DEFAULT_PROJECT_STATE = {
-    schema_version: "2",
+    schema_version: "3",
     memory_status: "fresh",
     memory_dirty: "false",
     dirty_reason: "",

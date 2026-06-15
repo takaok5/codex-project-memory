@@ -34,7 +34,8 @@ const configSchema = z
       .object({
         autoInstall: z.boolean(),
         cachePath: z.string().min(1),
-        installTimeoutMs: z.number().int().min(1000).max(600000)
+        installTimeoutMs: z.number().int().min(1000).max(600000),
+        runTimeoutMs: z.number().int().min(1000).max(600000)
       })
       .strict()
       .optional(),
@@ -81,7 +82,8 @@ export function defaultProjectConfig(projectName = "auto"): ProjectMemoryConfig 
     languageTools: {
       autoInstall: true,
       cachePath: ".codex/memory/cache/language-tools",
-      installTimeoutMs: 120000
+      installTimeoutMs: 120000,
+      runTimeoutMs: 30000
     },
     modules: [],
     criticalRules: [],
@@ -195,7 +197,8 @@ function normalizeConfig(value: unknown): unknown {
     languageTools: config.languageTools ?? {
       autoInstall: true,
       cachePath: ".codex/memory/cache/language-tools",
-      installTimeoutMs: 120000
+      installTimeoutMs: 120000,
+      runTimeoutMs: 30000
     }
   };
 }

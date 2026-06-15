@@ -8,7 +8,9 @@ export function runRetrievalAgent(ctx, input) {
     const modules = scoreModules(db, tokens).slice(0, input.maxFiles);
     const files = scoreFiles(db, tokens).slice(0, input.maxFiles);
     const symbols = scoreSymbols(db, tokens).slice(0, input.maxSymbols);
-    const warnings = scoreWarnings(db, tokens).slice(0, input.maxWarnings);
+    const warnings = [...scoreWarnings(db, tokens), ...scoreDiagnostics(db, tokens)]
+        .sort((a, b) => severityRank(a.severity) - severityRank(b.severity) || (a.filePath ?? "").localeCompare(b.filePath ?? "") || a.message.localeCompare(b.message))
+        .slice(0, input.maxWarnings);
     const current = input.includeVisualFrame ? getFrame(db, "current") : null;
     const state = getProjectState(db);
     const contextPack = {
@@ -69,6 +71,27 @@ function scoreWarnings(db, tokens) {
         .all()
         .filter((row) => scoreText(tokens, `${row.message} ${row.file_path ?? ""}`) > 0)
         .map((row) => ({ severity: row.severity, message: row.message, filePath: row.file_path ?? undefined, recommendation: row.recommendation ?? undefined }));
+}
+function scoreDiagnostics(db, tokens) {
+    return db
+        .prepare(`SELECT severity, message, code, file_path, tool
+         FROM diagnostics
+         ORDER BY CASE severity WHEN 'error' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, file_path ASC, start_line ASC`)
+        .all()
+        .filter((row) => row.severity !== "info" && scoreText(tokens, `${row.message} ${row.code ?? ""} ${row.file_path} ${row.tool}`) > 0)
+        .map((row) => ({
+        severity: row.severity === "error" ? "critical" : "warning",
+        message: `${row.tool}${row.code ? ` ${row.code}` : ""}: ${row.message}`,
+        filePath: row.file_path,
+        recommendation: "Review compiler-assisted diagnostic before editing this area."
+    }));
+}
+function severityRank(severity) {
+    if (severity === "critical")
+        return 0;
+    if (severity === "warning")
+        return 1;
+    return 2;
 }
 function scoreText(tokens, text) {
     const haystack = new Set(tokenizeForSearch(text));

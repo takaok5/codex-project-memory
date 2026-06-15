@@ -1,5 +1,6 @@
 import { getProjectState } from "../store/project-state-repository.js";
 import { safeJsonParse } from "../shared/json.js";
+import { listDiagnostics } from "../store/diagnostic-repository.js";
 import { listLanguageCapabilities } from "../store/language-capability-repository.js";
 export function buildNormalizedGraph(ctx) {
     const db = ctx.db;
@@ -15,6 +16,19 @@ export function buildNormalizedGraph(ctx) {
         riskLevel: row.risk_level
     }));
     const languageCapabilities = listLanguageCapabilities(db);
+    const diagnostics = listDiagnostics(db, { limit: 500 }).map((diagnostic) => ({
+        language: diagnostic.language,
+        filePath: diagnostic.filePath,
+        severity: diagnostic.severity,
+        code: diagnostic.code,
+        message: diagnostic.message,
+        startLine: diagnostic.startLine,
+        endLine: diagnostic.endLine,
+        source: diagnostic.source,
+        tool: diagnostic.tool,
+        confidence: diagnostic.confidence,
+        fingerprint: diagnostic.fingerprint
+    }));
     const files = db.prepare("SELECT id, path, language, module_id, hash, size_bytes, line_count, is_test, is_generated, analysis_json FROM files ORDER BY path ASC").all().map((row) => ({
         id: row.id,
         path: row.path,
@@ -104,6 +118,7 @@ export function buildNormalizedGraph(ctx) {
         version: 1,
         project: { name: ctx.config.projectName, status: state.status },
         languageCapabilities: languageCapabilities.map((item) => ({ ...item })),
+        diagnostics,
         modules,
         files,
         symbols,
@@ -119,6 +134,7 @@ export function canonicalizeGraph(graph) {
         version: 1,
         project: graph.project,
         languageCapabilities: sortBy(graph.languageCapabilities, ["language"]),
+        diagnostics: sortBy(graph.diagnostics, ["severity", "filePath", "startLine", "message"]),
         modules: sortBy(graph.modules, ["id"]),
         files: sortBy(graph.files, ["path"]),
         symbols: sortBy(graph.symbols, ["fqName", "filePath", "kind"]),

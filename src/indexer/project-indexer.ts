@@ -16,6 +16,7 @@ import { scanProjectFiles } from "./scan.js";
 import { inferModuleId } from "./module-inference.js";
 import { buildLanguageCapability } from "./language.js";
 import { resolveLanguageToolCapability } from "./language-tools.js";
+import { runDiagnosticAnalysis } from "./diagnostic-runner.js";
 import { indexScannedFile } from "./universal-indexer.js";
 import { resolveSymbolEdges } from "./dependency-graph.js";
 import { inferTestTargets } from "./test-adjacency.js";
@@ -36,6 +37,8 @@ export async function indexProject(ctx: RuntimeContext, options: IndexOptions = 
   const pendingImports: ImportExportEdgeInput[] = [];
   const pendingRoutes: Array<{ fileId: number; routes: RouteRecordInput[] }> = [];
   const touchedFileIds = new Set<number>();
+  const touchedFilePaths = new Set<string>();
+  const seenLanguages = new Set<string>();
   const capabilityByLanguage = new Map<string, ReturnType<typeof resolveLanguageToolCapability>>();
 
   for (const oldFile of existing) {
@@ -47,6 +50,7 @@ export async function indexProject(ctx: RuntimeContext, options: IndexOptions = 
 
   for (const scannedFile of scanned) {
     const moduleId = inferModuleId(scannedFile.path, ctx.config);
+    if (scannedFile.language) seenLanguages.add(scannedFile.language);
     upsertInferredModule(db, moduleId);
     const existingFile = getFileByPath(db, scannedFile.path);
     if (options.changedOnly && existingFile?.hash === scannedFile.hash) {
@@ -65,6 +69,7 @@ export async function indexProject(ctx: RuntimeContext, options: IndexOptions = 
       lastIndexedAt: nowIso()
     });
     touchedFileIds.add(fileId);
+    touchedFilePaths.add(scannedFile.path);
     if (scannedFile.sizeBytes > ctx.config.scan.maxFileBytes) {
       const warning = fileTooLargeWarning(fileId, moduleId, scannedFile.path);
       const capability = buildLanguageCapability(scannedFile.language, {
@@ -146,8 +151,14 @@ export async function indexProject(ctx: RuntimeContext, options: IndexOptions = 
     replaceTestLinksForFile(db, file.id!, testLinks.filter((link) => link.fileId === file.id));
   }
 
+  runDiagnosticAnalysis(ctx, {
+    languages: [...seenLanguages],
+    filePaths: options.changedOnly ? [...touchedFilePaths] : undefined,
+    changedOnly: options.changedOnly
+  });
+
   markMemoryFresh(db, nowIso());
-  setProjectStateValue(db, "indexer_version", "0.3.0");
+  setProjectStateValue(db, "indexer_version", "0.4.0");
   return {
     scannedFiles: scanned.length,
     indexedFiles,

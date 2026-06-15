@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.0 - 2026-06-15
+
+- Added compiler-assisted lazy diagnostics for the universal language layer.
+- Added SQLite schema v3 with a `diagnostics` table and migration from v2
+  without losing indexed files, warnings, language capabilities or frames.
+- Added normalized diagnostic output with relative POSIX paths, bounded
+  messages, severity, source, tool and confidence fields.
+- Added `pmem diagnostics --json` with `--language`, `--changed` and
+  `--no-install`.
+- Added `generated/diagnostics.json`, graph diagnostics and compact snapshot
+  diagnostics.
+- Extended `pmem doctor` with language-tool cache, lockfile, failed-tool and
+  diagnostics checks.
+- Kept MCP tool names stable; `memory.query` and `memory.agent` surface relevant
+  diagnostics through existing context warnings.
+
 ## 0.3.0 - 2026-06-15
 
 - Added universal language detection with wildcard `scan.languages`.

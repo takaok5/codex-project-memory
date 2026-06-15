@@ -4,6 +4,7 @@ import { printResult } from "./output.js";
 import { cmdAgentRun } from "./commands/agent.js";
 import { cmdAgentsInstall, cmdAgentsList } from "./commands/agents.js";
 import { cmdDoctor } from "./commands/doctor.js";
+import { cmdDiagnostics } from "./commands/diagnostics.js";
 import { cmdDiff } from "./commands/diff.js";
 import { cmdDuplicates } from "./commands/duplicates.js";
 import { cmdFrame } from "./commands/frame.js";
@@ -94,6 +95,18 @@ export async function runCli(argv: string[], cwd = process.cwd()): Promise<numbe
     .option("--json", "emit compact JSON")
     .action(async (frame: string, options: { json?: boolean }) => {
       const result = await cmdFrame({ cwd, frame });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+
+  program
+    .command("diagnostics")
+    .description("run compiler-assisted diagnostics")
+    .option("--language <id>", "language id filter")
+    .option("--changed", "prefer changed files when available")
+    .option("--no-install", "do not install missing user-space diagnostic tools")
+    .option("--json", "emit compact JSON")
+    .action(async (options: { language?: string; changed?: boolean; install?: boolean; json?: boolean }) => {
+      const result = await cmdDiagnostics({ cwd, language: options.language, changed: Boolean(options.changed), install: options.install });
       exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
     });
 

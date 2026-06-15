@@ -50,7 +50,7 @@ export async function cmdInit(options) {
                 memoryRoot: paths.memoryRootRel,
                 config: paths.configRel,
                 db: paths.dbRel,
-                schemaVersion: 2,
+                schemaVersion: 3,
                 created,
                 skipped
             },

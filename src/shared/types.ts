@@ -20,6 +20,7 @@ export type LanguageKind = LanguageId;
 
 export type LanguageAnalysisTier = "deep" | "structural" | "fallback";
 export type LanguageToolStatus = "available" | "missing" | "installing" | "failed" | "disabled" | "unsupported";
+export type DiagnosticSeverity = "error" | "warning" | "info";
 
 export interface LanguageCapability {
   language: LanguageId;
@@ -34,6 +35,26 @@ export interface LanguageCapability {
   tool: string | null;
   toolStatus: LanguageToolStatus;
   degradedReason: string | null;
+}
+
+export interface DiagnosticInput {
+  language: LanguageId;
+  filePath: string;
+  severity: DiagnosticSeverity;
+  code: string | null;
+  message: string;
+  startLine: number | null;
+  endLine: number | null;
+  source: "compiler" | "lsp" | "tool" | "fallback";
+  tool: string;
+  confidence: number;
+}
+
+export interface DiagnosticRecord extends DiagnosticInput {
+  id: number;
+  fileId: number | null;
+  fingerprint: string;
+  createdAt: string;
 }
 
 export const ARTIFACT_KINDS = [
@@ -62,7 +83,7 @@ export const ARTIFACT_KINDS = [
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
 
 export type WarningSeverity = "info" | "warning" | "critical";
-export type WarningSource = "parser" | "indexer" | "renderer" | "agent" | "mcp" | "config" | "inferred";
+export type WarningSource = "parser" | "indexer" | "renderer" | "agent" | "mcp" | "config" | "inferred" | "diagnostic";
 export type RiskLevel = "low" | "medium" | "high";
 export type DuplicateVerdict = "create_new_artifact" | "extend_existing_artifact" | "needs_human_review";
 export type FrameName = "current" | "overview" | "modules" | "duplicates" | "risks";
@@ -216,6 +237,7 @@ export interface ProjectMemoryConfig {
     autoInstall: boolean;
     cachePath: string;
     installTimeoutMs: number;
+    runTimeoutMs: number;
   };
   modules: Array<{
     id: string;
@@ -295,7 +317,7 @@ export interface InitOutput {
   memoryRoot: ".codex/memory";
   config: ".codex/memory/project-memory.config.json";
   db: ".codex/memory/memory.db";
-  schemaVersion: 2;
+  schemaVersion: 3;
   created: string[];
   skipped: string[];
 }
@@ -339,6 +361,13 @@ export interface DoctorOutput {
   frames: {
     current: CliFramePath | null;
     available: FrameName[];
+  };
+  languageTools?: {
+    cachePath: string;
+    lockfile: string;
+    lockedTools: string[];
+    failedTools: string[];
+    diagnostics: number;
   };
 }
 
@@ -567,6 +596,30 @@ export interface ContextWarning {
   recommendation?: string;
 }
 
+export interface DiagnosticsOutput {
+  languages: string[];
+  diagnostics: Array<{
+    language: string;
+    filePath: string;
+    severity: DiagnosticSeverity;
+    code: string | null;
+    message: string;
+    startLine: number | null;
+    endLine: number | null;
+    source: string;
+    tool: string;
+    confidence: number;
+  }>;
+  summary: {
+    total: number;
+    errors: number;
+    warnings: number;
+    info: number;
+    failedTools: string[];
+    degradedLanguages: string[];
+  };
+}
+
 export interface FrameRef {
   frame: FrameName;
   svg: string;
@@ -693,6 +746,7 @@ export interface NormalizedGraph {
   version: 1;
   project: { name: string; status: MemoryStatus; generatedAt?: string };
   languageCapabilities: JsonObject[];
+  diagnostics: JsonObject[];
   modules: JsonObject[];
   files: JsonObject[];
   symbols: JsonObject[];
@@ -803,9 +857,10 @@ export interface FrameOutput extends CliFramePath {
 export interface MemorySnapshot {
   version: 1;
   createdAt: string;
-  schemaVersion: "1" | "2" | null;
+  schemaVersion: "1" | "2" | "3" | null;
   configHash: string | null;
   languageCapabilities: JsonObject[];
+  diagnostics: Array<{ language: string; filePath: string; severity: DiagnosticSeverity; code: string | null; fingerprint: string }>;
   files: Array<{ path: string; hash: string; moduleId: string | null; language?: string | null; tier?: LanguageAnalysisTier | null }>;
   symbols: Array<{ fqName: string; kind: string; filePath: string; signatureHash?: string; bodyHash?: string }>;
   warnings: Array<{ warningType: string; severity: WarningSeverity; filePath?: string; fingerprint: string }>;

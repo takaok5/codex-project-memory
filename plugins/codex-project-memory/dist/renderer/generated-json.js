@@ -3,6 +3,7 @@ import { canonicalJsonHash, writeJsonFileAtomic } from "../shared/json.js";
 const GENERATED_FILES = [
     "project",
     "language-capabilities",
+    "diagnostics",
     "modules",
     "files",
     "symbols",
@@ -16,6 +17,7 @@ export function writeGeneratedJson(ctx, graph) {
     const values = {
         project: graph.project,
         "language-capabilities": graph.languageCapabilities,
+        diagnostics: graph.diagnostics,
         modules: graph.modules,
         files: graph.files,
         symbols: graph.symbols,

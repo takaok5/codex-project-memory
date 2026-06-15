@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { cmdDiff } from "../../src/cli/commands/diff.js";
+import { cmdDiagnostics } from "../../src/cli/commands/diagnostics.js";
 import { cmdDuplicates } from "../../src/cli/commands/duplicates.js";
 import { cmdAgentRun } from "../../src/cli/commands/agent.js";
 import { cmdHead } from "../../src/cli/commands/head.js";
@@ -24,6 +25,7 @@ describe("public output path audit", () => {
       const outputs: unknown[] = [];
       outputs.push(await cmdInit({ cwd: root }));
       outputs.push(await cmdIndex({ cwd: root }));
+      outputs.push(await cmdDiagnostics({ cwd: root, install: false }));
       outputs.push(await cmdRender({ cwd: root, png: false }));
       outputs.push(await cmdHead({ cwd: root }));
       outputs.push(await cmdQuery({ cwd: root, intent: "access subscription suspended", visual: true }));

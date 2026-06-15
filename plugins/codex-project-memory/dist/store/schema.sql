@@ -50,6 +50,27 @@ CREATE TABLE IF NOT EXISTS language_capabilities (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS diagnostics (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  file_id INTEGER REFERENCES files(id) ON DELETE CASCADE,
+  language TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  severity TEXT NOT NULL CHECK (severity IN ('error', 'warning', 'info')),
+  code TEXT,
+  message TEXT NOT NULL,
+  start_line INTEGER CHECK (start_line IS NULL OR start_line >= 1),
+  end_line INTEGER CHECK (end_line IS NULL OR end_line >= 1),
+  source TEXT NOT NULL CHECK (source IN ('compiler', 'lsp', 'tool', 'fallback')),
+  tool TEXT NOT NULL,
+  confidence REAL NOT NULL DEFAULT 1.0 CHECK (confidence >= 0.0 AND confidence <= 1.0),
+  fingerprint TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(file_path, tool, fingerprint),
+  CHECK (file_path NOT LIKE '/%'),
+  CHECK (file_path NOT LIKE '%\%'),
+  CHECK (end_line IS NULL OR start_line IS NULL OR end_line >= start_line)
+);
+
 CREATE TABLE IF NOT EXISTS symbols (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
@@ -105,7 +126,7 @@ CREATE TABLE IF NOT EXISTS warnings (
   symbol_id INTEGER REFERENCES symbols(id) ON DELETE SET NULL,
   message TEXT NOT NULL,
   recommendation TEXT,
-  source TEXT NOT NULL DEFAULT 'inferred' CHECK (source IN ('parser', 'indexer', 'renderer', 'agent', 'mcp', 'config', 'inferred')),
+  source TEXT NOT NULL DEFAULT 'inferred' CHECK (source IN ('parser', 'indexer', 'renderer', 'agent', 'mcp', 'config', 'inferred', 'diagnostic')),
   confidence REAL NOT NULL DEFAULT 1.0 CHECK (confidence >= 0.0 AND confidence <= 1.0),
   fingerprint TEXT NOT NULL,
   created_at TEXT NOT NULL,
@@ -155,6 +176,10 @@ CREATE INDEX IF NOT EXISTS idx_files_module_id ON files(module_id);
 CREATE INDEX IF NOT EXISTS idx_files_hash ON files(hash);
 CREATE INDEX IF NOT EXISTS idx_files_language ON files(language);
 CREATE INDEX IF NOT EXISTS idx_language_capabilities_tier ON language_capabilities(tier);
+CREATE INDEX IF NOT EXISTS idx_diagnostics_file_id ON diagnostics(file_id);
+CREATE INDEX IF NOT EXISTS idx_diagnostics_language ON diagnostics(language);
+CREATE INDEX IF NOT EXISTS idx_diagnostics_severity ON diagnostics(severity);
+CREATE INDEX IF NOT EXISTS idx_diagnostics_tool ON diagnostics(tool);
 CREATE INDEX IF NOT EXISTS idx_symbols_file_id ON symbols(file_id);
 CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
 CREATE INDEX IF NOT EXISTS idx_symbols_fq_name ON symbols(fq_name);

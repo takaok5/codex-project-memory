@@ -5,6 +5,7 @@ import type { GeneratedJsonResult, NormalizedGraph, RuntimeContext } from "../sh
 const GENERATED_FILES = [
   "project",
   "language-capabilities",
+  "diagnostics",
   "modules",
   "files",
   "symbols",
@@ -19,6 +20,7 @@ export function writeGeneratedJson(ctx: RuntimeContext, graph: NormalizedGraph):
   const values: Record<(typeof GENERATED_FILES)[number], unknown> = {
     project: graph.project,
     "language-capabilities": graph.languageCapabilities,
+    diagnostics: graph.diagnostics,
     modules: graph.modules,
     files: graph.files,
     symbols: graph.symbols,
