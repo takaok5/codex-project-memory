@@ -648,6 +648,7 @@ export interface FrameMap {
     svg: string;
     png: string | null;
     sourceHash: string;
+    languageCapabilities: JsonObject[];
     items: FrameMapItem[];
 }
 export interface GeneratedJsonResult {
@@ -691,6 +692,7 @@ export interface MemorySnapshot {
     createdAt: string;
     schemaVersion: "1" | "2" | null;
     configHash: string | null;
+    languageCapabilities: JsonObject[];
     files: Array<{
         path: string;
         hash: string;

@@ -1,0 +1,1 @@
+{"version":3,"file":"language-indexer.js","sourceRoot":"","sources":["../../src/indexer/language-indexer.ts"],"names":[],"mappings":"AAWA,MAAM,UAAU,gBAAgB,CAAC,OAAwB,EAAE,QAA2B;IACpF,IAAI,CAAC,QAAQ;QAAE,OAAO,OAAO,CAAC,SAAS,KAAK,GAAG,CAAC;IAChD,OAAO,OAAO,CAAC,SAAS,KAAK,GAAG,IAAI,OAAO,CAAC,SAAS,CAAC,QAAQ,CAAC,QAAQ,CAAC,CAAC;AAC3E,CAAC"}

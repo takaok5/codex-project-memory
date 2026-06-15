@@ -6,8 +6,10 @@ export interface LanguageMetadata {
     filenames?: string[];
     topLanguage: boolean;
     analyzer?: string;
+    detector: "linguist-languages" | "pmem-override";
 }
 export declare function classifyLanguage(filePath: string): LanguageId | null;
+export declare function detectLanguage(filePath: string): LanguageMetadata | null;
 export declare function getLanguageMetadata(filePathOrLanguage: string): LanguageMetadata | null;
 export declare function listKnownLanguages(): LanguageMetadata[];
 export declare function isLanguageEnabled(language: LanguageId | null, config: ProjectMemoryConfig): boolean;

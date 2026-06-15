@@ -38,7 +38,7 @@ export async function renderFrame(ctx: RuntimeContext, frame: FrameName, options
     warnings.push(png.warning);
   }
   const pngPath = png.ok ? pngRel : null;
-  const map = buildFrameMap(layout, { svg: svgRel, png: pngPath }, sourceHash);
+  const map = buildFrameMap(layout, { svg: svgRel, png: pngPath }, sourceHash, graph.languageCapabilities);
   writeFrameMap(mapAbs, map);
   const generatedAt = nowIso();
   const record: FrameRecord = {

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { canonicalJsonHash, safeJsonParse, writeJsonFileAtomic } from "../shared/json.js";
 import { nowIso } from "../shared/time.js";
 import type { DiffOutput, FrameName, MemorySnapshot, RuntimeContext, SnapshotRef, WarningSeverity } from "../shared/types.js";
+import { listLanguageCapabilities } from "../store/language-capability-repository.js";
 import type { MemoryDb } from "../store/sqlite.js";
 
 export function rotateSnapshotsForWrite(ctx: RuntimeContext): void {
@@ -62,6 +63,7 @@ export function createMemorySnapshot(ctx: RuntimeContext, options: { ref?: "late
     createdAt: nowIso(),
     schemaVersion: "2",
     configHash: canonicalJsonHash(ctx.config),
+    languageCapabilities: listLanguageCapabilities(db).map((item) => ({ ...item })),
     files,
     symbols,
     warnings,

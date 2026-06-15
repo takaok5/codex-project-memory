@@ -1,12 +1,13 @@
 import { join } from "node:path";
 import { writeJsonFileAtomic } from "../shared/json.js";
-export function buildFrameMap(layout, paths, sourceHash) {
+export function buildFrameMap(layout, paths, sourceHash, languageCapabilities) {
     return {
         version: 1,
         frame: layout.frame,
         svg: paths.svg,
         png: paths.png,
         sourceHash,
+        languageCapabilities,
         items: layout.nodes.map(toMapItem)
     };
 }

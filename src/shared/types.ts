@@ -754,6 +754,7 @@ export interface FrameMap {
   svg: string;
   png: string | null;
   sourceHash: string;
+  languageCapabilities: JsonObject[];
   items: FrameMapItem[];
 }
 
@@ -804,6 +805,7 @@ export interface MemorySnapshot {
   createdAt: string;
   schemaVersion: "1" | "2" | null;
   configHash: string | null;
+  languageCapabilities: JsonObject[];
   files: Array<{ path: string; hash: string; moduleId: string | null; language?: string | null; tier?: LanguageAnalysisTier | null }>;
   symbols: Array<{ fqName: string; kind: string; filePath: string; signatureHash?: string; bodyHash?: string }>;
   warnings: Array<{ warningType: string; severity: WarningSeverity; filePath?: string; fingerprint: string }>;

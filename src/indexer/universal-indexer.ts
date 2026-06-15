@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { hashContent } from "./hash.js";
 import { indexFileAst } from "./ast-indexer.js";
 import { buildLanguageCapability } from "./language.js";
+import type { LanguageIndexer } from "./language-indexer.js";
+import { supportsLanguage } from "./language-indexer.js";
 import type { ArtifactKind, AstIndexOptions, AstIndexResult, ImportExportEdgeInput, ScannedFile, SymbolRecord, WarningRecordInput } from "../shared/types.js";
 
 interface ExtractedSymbol {
@@ -19,11 +21,40 @@ interface ExtractedRoute {
 }
 
 export function indexScannedFile(absPath: string, file: ScannedFile, options: AstIndexOptions): AstIndexResult {
-  if (file.language === "typescript" || file.language === "javascript") {
+  return getLanguageIndexer(file).index(absPath, file, options);
+}
+
+export const tsMorphLanguageIndexer: LanguageIndexer = {
+  id: "ts-morph",
+  languages: ["typescript", "javascript"],
+  parser: "ts-morph",
+  tier: "deep",
+  supports(file) {
+    return supportsLanguage(this, file.language);
+  },
+  index(absPath, file, options) {
     return indexFileAst(absPath, file, options);
   }
-  return indexFallbackFile(absPath, file, options);
+};
+
+export const universalFallbackLanguageIndexer: LanguageIndexer = {
+  id: "universal-fallback",
+  languages: "*",
+  parser: "pattern",
+  tier: "fallback",
+  supports() {
+    return true;
+  },
+  index(absPath, file, options) {
+    return indexFallbackFile(absPath, file, options);
+  }
+};
+
+export function getLanguageIndexer(file: ScannedFile): LanguageIndexer {
+  return LANGUAGE_INDEXERS.find((indexer) => indexer.supports(file)) ?? universalFallbackLanguageIndexer;
 }
+
+export const LANGUAGE_INDEXERS: LanguageIndexer[] = [tsMorphLanguageIndexer, universalFallbackLanguageIndexer];
 
 function indexFallbackFile(absPath: string, file: ScannedFile, options: AstIndexOptions): AstIndexResult {
   const indexedFile = {

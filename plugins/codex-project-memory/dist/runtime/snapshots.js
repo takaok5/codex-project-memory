@@ -2,6 +2,7 @@ import { existsSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { canonicalJsonHash, safeJsonParse, writeJsonFileAtomic } from "../shared/json.js";
 import { nowIso } from "../shared/time.js";
+import { listLanguageCapabilities } from "../store/language-capability-repository.js";
 export function rotateSnapshotsForWrite(ctx) {
     const latest = snapshotAbs(ctx, "latest");
     if (existsSync(latest)) {
@@ -54,6 +55,7 @@ export function createMemorySnapshot(ctx, options = {}) {
         createdAt: nowIso(),
         schemaVersion: "2",
         configHash: canonicalJsonHash(ctx.config),
+        languageCapabilities: listLanguageCapabilities(db).map((item) => ({ ...item })),
         files,
         symbols,
         warnings,

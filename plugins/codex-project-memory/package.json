@@ -32,6 +32,7 @@
     "better-sqlite3": "*",
     "commander": "*",
     "fast-glob": "*",
+    "linguist-languages": "^9.4.0",
     "picomatch": "*",
     "ts-morph": "*",
     "zod": "*"

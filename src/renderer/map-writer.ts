@@ -1,14 +1,15 @@
 import { join } from "node:path";
 import { writeJsonFileAtomic } from "../shared/json.js";
-import type { FrameMap, FrameMapItem, LayoutResult } from "../shared/types.js";
+import type { FrameMap, FrameMapItem, JsonObject, LayoutResult } from "../shared/types.js";
 
-export function buildFrameMap(layout: LayoutResult, paths: { svg: string; png: string | null }, sourceHash: string): FrameMap {
+export function buildFrameMap(layout: LayoutResult, paths: { svg: string; png: string | null }, sourceHash: string, languageCapabilities: JsonObject[]): FrameMap {
   return {
     version: 1,
     frame: layout.frame,
     svg: paths.svg,
     png: paths.png,
     sourceHash,
+    languageCapabilities,
     items: layout.nodes.map(toMapItem)
   };
 }

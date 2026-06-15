@@ -8,6 +8,7 @@ const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const requiredPackages = [
   "commander",
   "better-sqlite3",
+  "linguist-languages",
   "ts-morph",
   "zod",
   "@modelcontextprotocol/sdk"

@@ -2,12 +2,38 @@ import { readFileSync } from "node:fs";
 import { hashContent } from "./hash.js";
 import { indexFileAst } from "./ast-indexer.js";
 import { buildLanguageCapability } from "./language.js";
+import { supportsLanguage } from "./language-indexer.js";
 export function indexScannedFile(absPath, file, options) {
-    if (file.language === "typescript" || file.language === "javascript") {
+    return getLanguageIndexer(file).index(absPath, file, options);
+}
+export const tsMorphLanguageIndexer = {
+    id: "ts-morph",
+    languages: ["typescript", "javascript"],
+    parser: "ts-morph",
+    tier: "deep",
+    supports(file) {
+        return supportsLanguage(this, file.language);
+    },
+    index(absPath, file, options) {
         return indexFileAst(absPath, file, options);
     }
-    return indexFallbackFile(absPath, file, options);
+};
+export const universalFallbackLanguageIndexer = {
+    id: "universal-fallback",
+    languages: "*",
+    parser: "pattern",
+    tier: "fallback",
+    supports() {
+        return true;
+    },
+    index(absPath, file, options) {
+        return indexFallbackFile(absPath, file, options);
+    }
+};
+export function getLanguageIndexer(file) {
+    return LANGUAGE_INDEXERS.find((indexer) => indexer.supports(file)) ?? universalFallbackLanguageIndexer;
 }
+export const LANGUAGE_INDEXERS = [tsMorphLanguageIndexer, universalFallbackLanguageIndexer];
 function indexFallbackFile(absPath, file, options) {
     const indexedFile = {
         path: file.path,
