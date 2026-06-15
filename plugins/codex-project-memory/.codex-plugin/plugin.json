@@ -1,6 +1,6 @@
 {
   "name": "codex-project-memory",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Local repository memory for Codex with SQLite, deterministic frames, MCP tools, lazy compiler diagnostics and an implicit skill lifecycle.",
   "author": {
     "name": "Project Memory Maintainers"

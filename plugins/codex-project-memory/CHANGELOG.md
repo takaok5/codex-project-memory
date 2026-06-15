@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.1 - 2026-06-15
+
+- Fixed `memory.agent` / `pmem agent run --phase post_change` failures caused
+  by duplicate symbols in the same file.
+- Made symbol replacement transactional and deterministic by deduping symbols on
+  `(file_id, fqName, kind)` before insert.
+- Added regression coverage for duplicate symbol insertion.
+
 ## 0.4.0 - 2026-06-15
 
 - Added compiler-assisted lazy diagnostics for the universal language layer.

@@ -2,26 +2,89 @@ import type { SymbolRecord, SymbolSearchQuery } from "../shared/types.js";
 import type { MemoryDb } from "./sqlite.js";
 
 export function replaceSymbolsForFile(db: MemoryDb, fileId: number, symbols: SymbolRecord[]): void {
-  db.prepare("DELETE FROM symbols WHERE file_id = ?").run(fileId);
   const insert = db.prepare(
     `INSERT INTO symbols(file_id, fq_name, name, kind, exported, start_line, end_line, signature, signature_hash, body_hash, summary)
      VALUES (@fileId, @fqName, @name, @kind, @exported, @startLine, @endLine, @signature, @signatureHash, @bodyHash, @summary)`
   );
+  const uniqueSymbols = dedupeSymbols(fileId, symbols);
+  db.transaction(() => {
+    db.prepare("DELETE FROM symbols WHERE file_id = ?").run(fileId);
+    for (const symbol of uniqueSymbols) {
+      insert.run({
+        fileId,
+        fqName: symbol.fqName,
+        name: symbol.name,
+        kind: symbol.kind,
+        exported: symbol.exported ? 1 : 0,
+        startLine: symbol.startLine ?? null,
+        endLine: symbol.endLine ?? null,
+        signature: symbol.signature ?? null,
+        signatureHash: symbol.signatureHash ?? null,
+        bodyHash: symbol.bodyHash ?? null,
+        summary: symbol.summary ?? null
+      });
+    }
+  })();
+}
+
+function dedupeSymbols(fileId: number, symbols: SymbolRecord[]): SymbolRecord[] {
+  const byKey = new Map<string, SymbolRecord>();
   for (const symbol of symbols) {
-    insert.run({
-      fileId,
-      fqName: symbol.fqName,
-      name: symbol.name,
-      kind: symbol.kind,
-      exported: symbol.exported ? 1 : 0,
-      startLine: symbol.startLine ?? null,
-      endLine: symbol.endLine ?? null,
-      signature: symbol.signature ?? null,
-      signatureHash: symbol.signatureHash ?? null,
-      bodyHash: symbol.bodyHash ?? null,
-      summary: symbol.summary ?? null
-    });
+    const normalized = normalizeSymbol(fileId, symbol);
+    const key = `${normalized.fqName}\0${normalized.kind}`;
+    const existing = byKey.get(key);
+    byKey.set(key, existing ? mergeDuplicateSymbol(existing, normalized) : normalized);
   }
+  return [...byKey.values()].sort((a, b) => `${a.fqName}\0${a.kind}`.localeCompare(`${b.fqName}\0${b.kind}`));
+}
+
+function normalizeSymbol(fileId: number, symbol: SymbolRecord): SymbolRecord {
+  const startLine = symbol.startLine;
+  const endLine = symbol.endLine && startLine && symbol.endLine < startLine ? startLine : symbol.endLine;
+  return { ...symbol, fileId, startLine, endLine };
+}
+
+function mergeDuplicateSymbol(left: SymbolRecord, right: SymbolRecord): SymbolRecord {
+  const representative = preferredSymbol(left, right);
+  const startLine = minDefined(left.startLine, right.startLine);
+  const endLine = maxDefined(left.endLine, right.endLine);
+  return {
+    ...representative,
+    exported: left.exported || right.exported,
+    startLine,
+    endLine: endLine && startLine && endLine < startLine ? startLine : endLine,
+    signature: representative.signature ?? left.signature ?? right.signature,
+    signatureHash: representative.signatureHash ?? left.signatureHash ?? right.signatureHash,
+    bodyHash: representative.bodyHash ?? left.bodyHash ?? right.bodyHash,
+    summary: left.summary ?? right.summary
+  };
+}
+
+function preferredSymbol(left: SymbolRecord, right: SymbolRecord): SymbolRecord {
+  const leftSpan = span(left);
+  const rightSpan = span(right);
+  if (right.exported && !left.exported) return right;
+  if (rightSpan > leftSpan) return right;
+  if (leftSpan > rightSpan) return left;
+  if ((right.startLine ?? Number.MAX_SAFE_INTEGER) < (left.startLine ?? Number.MAX_SAFE_INTEGER)) return right;
+  return left;
+}
+
+function span(symbol: SymbolRecord): number {
+  if (!symbol.startLine || !symbol.endLine) return 0;
+  return symbol.endLine - symbol.startLine;
+}
+
+function minDefined(left?: number, right?: number): number | undefined {
+  if (left === undefined) return right;
+  if (right === undefined) return left;
+  return Math.min(left, right);
+}
+
+function maxDefined(left?: number, right?: number): number | undefined {
+  if (left === undefined) return right;
+  if (right === undefined) return left;
+  return Math.max(left, right);
 }
 
 export function searchSymbols(db: MemoryDb, query: SymbolSearchQuery): SymbolRecord[] {
