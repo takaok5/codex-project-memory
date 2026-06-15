@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.2 - 2026-06-15
+
+- Added explicit `doctor` capability status for compiler-assisted diagnostics:
+  `capabilities.diagnostics.status`.
+- Kept compiler diagnostics degradation non-blocking via
+  `capabilities.diagnostics.hardGate=false`.
+- Preserved `overallStatus` values for backward compatibility while giving
+  adapters a precise field to distinguish optional diagnostics degradation from
+  SQLite/schema/runtime failures.
+
 ## 0.4.1 - 2026-06-15
 
 - Fixed `memory.agent` / `pmem agent run --phase post_change` failures caused

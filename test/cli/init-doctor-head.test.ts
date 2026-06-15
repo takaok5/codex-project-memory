@@ -1,9 +1,10 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { cpSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { cmdDoctor } from "../../src/cli/commands/doctor.js";
 import { cmdHead } from "../../src/cli/commands/head.js";
+import { cmdIndex } from "../../src/cli/commands/index.js";
 import { cmdInit } from "../../src/cli/commands/init.js";
 
 describe("init/doctor/head CLI commands", () => {
@@ -30,6 +31,15 @@ describe("init/doctor/head CLI commands", () => {
         ok: true,
         data: {
           overallStatus: "ok",
+          capabilities: {
+            diagnostics: {
+              status: "ok",
+              hardGate: false,
+              diagnosticsStored: 0,
+              degradedLanguages: [],
+              failedTools: []
+            }
+          },
           schema: { userVersion: 3, schemaVersion: "3", foreignKeysEnabled: true, requiredTablesPresent: true, forbiddenTables: [] }
         }
       });
@@ -47,6 +57,32 @@ describe("init/doctor/head CLI commands", () => {
       expect(second.ok).toBe(true);
       expect(second.data?.created).toEqual([]);
       expect(second.data?.skipped).toContain(".codex/memory/memory.db");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("classifies compiler-assisted diagnostics degradation as a non-blocking capability", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "pmem-cli-doctor-diagnostics-"));
+    try {
+      cpSync(path.resolve("test/fixtures/python-fastapi-basic"), root, { recursive: true });
+      await cmdInit({ cwd: root });
+      await cmdIndex({ cwd: root });
+
+      await expect(cmdDoctor({ cwd: root })).resolves.toMatchObject({
+        ok: true,
+        data: {
+          overallStatus: "warning",
+          capabilities: {
+            diagnostics: {
+              status: "degraded",
+              hardGate: false,
+              degradedLanguages: ["python"],
+              failedTools: []
+            }
+          }
+        }
+      });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

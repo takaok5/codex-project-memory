@@ -44,6 +44,7 @@ export async function cmdDoctor(options) {
         let current = null;
         let diagnosticsCount = 0;
         let failedTools = [];
+        let languageCapabilities = [];
         let languageToolsCachePath = ".codex/memory/cache/language-tools";
         let lockedTools = [];
         if (existsSync(paths.dbAbs)) {
@@ -62,7 +63,8 @@ export async function cmdDoctor(options) {
                         const frameRows = db.prepare("SELECT id, svg_path, png_path, map_path, source_hash, generated_at FROM frames ORDER BY id").all();
                         availableFrames = frameRows.map((row) => row.id);
                         diagnosticsCount = listDiagnostics(db, { limit: 100000 }).length;
-                        failedTools = listLanguageCapabilities(db)
+                        languageCapabilities = listLanguageCapabilities(db);
+                        failedTools = languageCapabilities
                             .filter((capability) => capability.toolStatus === "failed")
                             .map((capability) => capability.tool ?? capability.language)
                             .sort();
@@ -102,7 +104,6 @@ export async function cmdDoctor(options) {
         checks.push({ id: "frame_map", status: current ? "ok" : "skipped", message: current ? "current.map.json present" : "current.map.json not rendered yet" });
         checks.push({ id: "frame_png", status: "skipped", message: "current.png is optional" });
         checks.push({ id: "language_tools_cache", status: "ok", message: "language tool cache is project-local" });
-        checks.push({ id: "diagnostics", status: failedTools.length ? "warning" : "ok", message: failedTools.length ? `failed diagnostic tools: ${failedTools.join(", ")}` : `${diagnosticsCount} diagnostics stored` });
         if (configOk) {
             try {
                 languageToolsCachePath = loadProjectConfig(paths).languageTools?.cachePath ?? languageToolsCachePath;
@@ -117,9 +118,22 @@ export async function cmdDoctor(options) {
                 lockedTools = [];
             }
         }
+        const initialized = memoryRootExists || configOk || existsSync(paths.dbAbs);
+        const diagnosticsCapability = buildDiagnosticsCapability(initialized, diagnosticsCount, languageCapabilities, failedTools);
+        checks.push({
+            id: "diagnostics",
+            status: diagnosticsCapability.status === "not_initialized" ? "skipped" : diagnosticsCapability.status === "degraded" ? "warning" : "ok",
+            message: diagnosticsCapability.message,
+            details: {
+                hardGate: diagnosticsCapability.hardGate,
+                status: diagnosticsCapability.status,
+                degradedLanguages: diagnosticsCapability.degradedLanguages,
+                failedTools: diagnosticsCapability.failedTools,
+                diagnosticsStored: diagnosticsCapability.diagnosticsStored
+            }
+        });
         const anyError = checks.some((check) => check.status === "error");
         const anyWarning = checks.some((check) => check.status === "warning");
-        const initialized = memoryRootExists || configOk || existsSync(paths.dbAbs);
         const overallStatus = !initialized ? "not_initialized" : anyError ? "error" : anyWarning ? "warning" : "ok";
         return {
             ok: true,
@@ -138,6 +152,9 @@ export async function cmdDoctor(options) {
                 checks,
                 schema: { userVersion, schemaVersion, foreignKeysEnabled, requiredTablesPresent, forbiddenTables },
                 frames: { current, available: availableFrames },
+                capabilities: {
+                    diagnostics: diagnosticsCapability
+                },
                 languageTools: {
                     cachePath: languageToolsCachePath,
                     lockfile: `${languageToolsCachePath.replaceAll("\\", "/").replace(/\/$/, "")}/pmem-language-tools.lock.json`,
@@ -152,6 +169,40 @@ export async function cmdDoctor(options) {
     catch (error) {
         return { ok: false, error: toErrorPayload(error), warnings: [] };
     }
+}
+function buildDiagnosticsCapability(initialized, diagnosticsStored, languageCapabilities, failedTools) {
+    if (!initialized) {
+        return {
+            status: "not_initialized",
+            hardGate: false,
+            message: "diagnostics unavailable before init",
+            diagnosticsStored,
+            degradedLanguages: [],
+            failedTools
+        };
+    }
+    const degradedLanguages = languageCapabilities
+        .filter((capability) => Boolean(capability.degradedReason) || (Boolean(capability.tool) && capability.toolStatus !== "available"))
+        .map((capability) => capability.language)
+        .sort();
+    if (degradedLanguages.length > 0 || failedTools.length > 0) {
+        return {
+            status: "degraded",
+            hardGate: false,
+            message: `compiler-assisted diagnostics degraded for ${degradedLanguages.length} language${degradedLanguages.length === 1 ? "" : "s"}; not a hard gate`,
+            diagnosticsStored,
+            degradedLanguages,
+            failedTools
+        };
+    }
+    return {
+        status: "ok",
+        hardGate: false,
+        message: languageCapabilities.length > 0 ? `${diagnosticsStored} diagnostics stored` : "no indexed language diagnostics yet",
+        diagnosticsStored,
+        degradedLanguages: [],
+        failedTools: []
+    };
 }
 function emptyState() {
     return {

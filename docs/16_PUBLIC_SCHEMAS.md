@@ -389,6 +389,16 @@ interface DoctorOutput {
     current: CliFramePath | null;
     available: FrameName[];
   };
+  capabilities: {
+    diagnostics: {
+      status: "ok" | "degraded" | "not_initialized";
+      hardGate: false;
+      message: string;
+      diagnosticsStored: number;
+      degradedLanguages: string[];
+      failedTools: string[];
+    };
+  };
 }
 
 interface ScanOutput {

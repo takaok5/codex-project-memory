@@ -362,6 +362,16 @@ pmem doctor [--json]
       "currentMap": ".codex/memory/current.map.json",
       "currentPng": null,
       "pngOptional": true
+    },
+    "capabilities": {
+      "diagnostics": {
+        "status": "ok",
+        "hardGate": false,
+        "message": "0 diagnostics stored",
+        "diagnosticsStored": 0,
+        "degradedLanguages": [],
+        "failedTools": []
+      }
     }
   },
   "warnings": []
@@ -379,6 +389,7 @@ Nessuno. `doctor` non chiama `ensureSchema()` in modo mutativo. Può aprire il D
 - Segnala `features` come tabella vietata legacy se presente, ma non la elimina.
 - Non cancella DB corrotto.
 - Non scrive config o frame.
+- `capabilities.diagnostics.status="degraded"` segnala solo degradazione non bloccante del layer compiler-assisted; non implica corruzione SQLite, schema invalido o fallimento della memoria core.
 
 ### Error handling
 
@@ -392,6 +403,7 @@ Nessuno. `doctor` non chiama `ensureSchema()` in modo mutativo. Può aprire il D
 | DB corrotto | `ok=true`, check `sqlite_open:error`, dettagli `DB_ERROR` |
 | `features` presente | `ok=true`, check `sqlite_forbidden_tables:warning` |
 | PNG mancante | `ok=true`, check `frame_png:skipped` o `warning`, mai errore |
+| analyzer compiler-assisted mancante/fallito | `ok=true`, `capabilities.diagnostics.status="degraded"`, `hardGate=false` |
 
 ### Test minimi
 

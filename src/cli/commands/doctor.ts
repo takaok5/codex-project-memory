@@ -9,7 +9,7 @@ import { listDiagnostics } from "../../store/diagnostic-repository.js";
 import { listLanguageCapabilities } from "../../store/language-capability-repository.js";
 import { FORBIDDEN_TABLES, REQUIRED_TABLES } from "../../store/sqlite.js";
 import { toErrorPayload } from "../../shared/errors.js";
-import type { CliCheck, CliResult, DoctorOutput, ProjectState } from "../../shared/types.js";
+import type { CliCheck, CliResult, DoctorOutput, LanguageCapability, ProjectState } from "../../shared/types.js";
 
 export interface DoctorOptions {
   cwd: string;
@@ -50,6 +50,7 @@ export async function cmdDoctor(options: DoctorOptions): Promise<CliResult<Docto
     let current: DoctorOutput["frames"]["current"] = null;
     let diagnosticsCount = 0;
     let failedTools: string[] = [];
+    let languageCapabilities: LanguageCapability[] = [];
     let languageToolsCachePath = ".codex/memory/cache/language-tools";
     let lockedTools: string[] = [];
 
@@ -76,7 +77,8 @@ export async function cmdDoctor(options: DoctorOptions): Promise<CliResult<Docto
             }>;
             availableFrames = frameRows.map((row) => row.id);
             diagnosticsCount = listDiagnostics(db, { limit: 100000 }).length;
-            failedTools = listLanguageCapabilities(db)
+            languageCapabilities = listLanguageCapabilities(db);
+            failedTools = languageCapabilities
               .filter((capability) => capability.toolStatus === "failed")
               .map((capability) => capability.tool ?? capability.language)
               .sort();
@@ -114,7 +116,6 @@ export async function cmdDoctor(options: DoctorOptions): Promise<CliResult<Docto
     checks.push({ id: "frame_map", status: current ? "ok" : "skipped", message: current ? "current.map.json present" : "current.map.json not rendered yet" });
     checks.push({ id: "frame_png", status: "skipped", message: "current.png is optional" });
     checks.push({ id: "language_tools_cache", status: "ok", message: "language tool cache is project-local" });
-    checks.push({ id: "diagnostics", status: failedTools.length ? "warning" : "ok", message: failedTools.length ? `failed diagnostic tools: ${failedTools.join(", ")}` : `${diagnosticsCount} diagnostics stored` });
 
     if (configOk) {
       try {
@@ -130,9 +131,23 @@ export async function cmdDoctor(options: DoctorOptions): Promise<CliResult<Docto
       }
     }
 
+    const initialized = memoryRootExists || configOk || existsSync(paths.dbAbs);
+    const diagnosticsCapability = buildDiagnosticsCapability(initialized, diagnosticsCount, languageCapabilities, failedTools);
+    checks.push({
+      id: "diagnostics",
+      status: diagnosticsCapability.status === "not_initialized" ? "skipped" : diagnosticsCapability.status === "degraded" ? "warning" : "ok",
+      message: diagnosticsCapability.message,
+      details: {
+        hardGate: diagnosticsCapability.hardGate,
+        status: diagnosticsCapability.status,
+        degradedLanguages: diagnosticsCapability.degradedLanguages,
+        failedTools: diagnosticsCapability.failedTools,
+        diagnosticsStored: diagnosticsCapability.diagnosticsStored
+      }
+    });
+
     const anyError = checks.some((check) => check.status === "error");
     const anyWarning = checks.some((check) => check.status === "warning");
-    const initialized = memoryRootExists || configOk || existsSync(paths.dbAbs);
     const overallStatus: DoctorOutput["overallStatus"] = !initialized ? "not_initialized" : anyError ? "error" : anyWarning ? "warning" : "ok";
 
     return {
@@ -152,6 +167,9 @@ export async function cmdDoctor(options: DoctorOptions): Promise<CliResult<Docto
         checks,
         schema: { userVersion, schemaVersion, foreignKeysEnabled, requiredTablesPresent, forbiddenTables },
         frames: { current, available: availableFrames },
+        capabilities: {
+          diagnostics: diagnosticsCapability
+        },
         languageTools: {
           cachePath: languageToolsCachePath,
           lockfile: `${languageToolsCachePath.replaceAll("\\", "/").replace(/\/$/, "")}/pmem-language-tools.lock.json`,
@@ -165,6 +183,49 @@ export async function cmdDoctor(options: DoctorOptions): Promise<CliResult<Docto
   } catch (error) {
     return { ok: false, error: toErrorPayload(error), warnings: [] };
   }
+}
+
+function buildDiagnosticsCapability(
+  initialized: boolean,
+  diagnosticsStored: number,
+  languageCapabilities: LanguageCapability[],
+  failedTools: string[]
+): DoctorOutput["capabilities"]["diagnostics"] {
+  if (!initialized) {
+    return {
+      status: "not_initialized",
+      hardGate: false,
+      message: "diagnostics unavailable before init",
+      diagnosticsStored,
+      degradedLanguages: [],
+      failedTools
+    };
+  }
+
+  const degradedLanguages = languageCapabilities
+    .filter((capability) => Boolean(capability.degradedReason) || (Boolean(capability.tool) && capability.toolStatus !== "available"))
+    .map((capability) => capability.language)
+    .sort();
+
+  if (degradedLanguages.length > 0 || failedTools.length > 0) {
+    return {
+      status: "degraded",
+      hardGate: false,
+      message: `compiler-assisted diagnostics degraded for ${degradedLanguages.length} language${degradedLanguages.length === 1 ? "" : "s"}; not a hard gate`,
+      diagnosticsStored,
+      degradedLanguages,
+      failedTools
+    };
+  }
+
+  return {
+    status: "ok",
+    hardGate: false,
+    message: languageCapabilities.length > 0 ? `${diagnosticsStored} diagnostics stored` : "no indexed language diagnostics yet",
+    diagnosticsStored,
+    degradedLanguages: [],
+    failedTools: []
+  };
 }
 
 function emptyState(): ProjectState {
