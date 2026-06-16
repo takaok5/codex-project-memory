@@ -2,35 +2,43 @@ import { getFrame } from "../store/frame-repository.js";
 import { getProjectState } from "../store/project-state-repository.js";
 import { addRetrievalLog } from "../store/retrieval-log-repository.js";
 import { tokenizeForSearch } from "./tokenize.js";
-import type { ContextFile, ContextModule, ContextSymbol, ContextWarning, JsonObject, RetrievalAgentInput, QueryOutput, RuntimeContext, WarningSeverity } from "../shared/types.js";
+import type { ContextBudget, ContextFile, ContextModule, ContextSymbol, ContextWarning, EvidenceItem, JsonObject, RetrievalAgentInput, QueryOutput, RuntimeContext, WarningSeverity } from "../shared/types.js";
 import type { MemoryDb } from "../store/sqlite.js";
 
 export function runRetrievalAgent(ctx: RuntimeContext, input: RetrievalAgentInput): QueryOutput {
   const db = ctx.db as MemoryDb;
   const tokens = tokenizeForSearch(input.intent);
-  const modules = scoreModules(db, tokens).slice(0, input.maxFiles);
-  const files = scoreFiles(db, tokens).slice(0, input.maxFiles);
-  const symbols = scoreSymbols(db, tokens).slice(0, input.maxSymbols);
+  const minScore = clampInt(input.minScore ?? 30, 0, 300);
+  const maxEvidenceItems = clampInt(input.maxEvidenceItems ?? 12, 1, 40);
+  const modules = scoreModules(db, tokens).filter((item) => item.score >= minScore).slice(0, input.maxFiles);
+  const files = scoreFiles(db, tokens).filter((item) => item.score >= minScore).slice(0, input.maxFiles);
+  const symbols = scoreSymbols(db, tokens).filter((item) => item.score >= minScore).slice(0, input.maxSymbols);
   const warnings = [...scoreWarnings(db, tokens), ...scoreDiagnostics(db, tokens)]
     .sort((a, b) => severityRank(a.severity) - severityRank(b.severity) || (a.filePath ?? "").localeCompare(b.filePath ?? "") || a.message.localeCompare(b.message))
     .slice(0, input.maxWarnings);
   const current = input.includeVisualFrame ? getFrame(db, "current") : null;
   const state = getProjectState(db);
+  const constraints = selectConstraints(ctx.config.criticalRules, modules, files, symbols, maxEvidenceItems);
+  const rawEvidence = buildEvidenceItems({ modules, files, symbols, warnings, constraints });
+  const evidence = rawEvidence.slice(0, maxEvidenceItems);
+  const budget = buildBudget(maxEvidenceItems, rawEvidence.length, evidence);
   const contextPack = {
     summary: modules.length > 0 ? `Relevant modules: ${modules.map((module) => module.id).join(", ")}.` : "No strong structural matches found.",
+    budget,
+    evidence,
     modules,
     files,
     symbols,
-    constraints: ctx.config.criticalRules.slice(0, 20),
+    constraints,
     warnings,
     nextCommands: [`pmem duplicates --kind service ${input.intent} --json`],
     ...(current ? { visualFrame: { frame: current.id, svg: current.svgPath, png: current.pngPath, map: current.mapPath } } : {})
   };
   const output: QueryOutput = { intent: input.intent, contextPack };
-  addRetrievalLog(db, { intent: input.intent, agent: "retrieval", output: output as unknown as JsonObject });
   if (state.status !== "fresh") {
     output.contextPack.warnings.unshift({ severity: "warning", message: `Memory status is ${state.status}.`, recommendation: "Run pmem refresh --json." });
   }
+  addRetrievalLog(db, { intent: input.intent, agent: "retrieval", output: output as unknown as JsonObject });
   return output;
 }
 
@@ -135,6 +143,102 @@ function hasTokenMatch(haystack: Set<string>, token: string): boolean {
 
 function compareScored(a: ScoredRetrievalCandidate, b: ScoredRetrievalCandidate): number {
   return b.score - a.score || (a.path ?? "").localeCompare(b.path ?? "") || a.name.localeCompare(b.name) || a.id - b.id;
+}
+
+function selectConstraints(rules: string[], modules: ContextModule[], files: ContextFile[], symbols: ContextSymbol[], maxEvidenceItems: number): string[] {
+  if (modules.length === 0 && files.length === 0 && symbols.length === 0) return [];
+  return rules.slice(0, Math.min(5, Math.max(1, Math.floor(maxEvidenceItems / 3))));
+}
+
+function buildEvidenceItems(input: { modules: ContextModule[]; files: ContextFile[]; symbols: ContextSymbol[]; warnings: ContextWarning[]; constraints: string[] }): EvidenceItem[] {
+  const evidence: EvidenceItem[] = [];
+  for (const module of input.modules) {
+    evidence.push({
+      id: `module:${module.id}`,
+      kind: "module",
+      summary: `Module ${module.id}: ${module.name}`,
+      source: module.id,
+      confidence: scoreToConfidence(module.score),
+      reason: module.reason,
+      score: module.score,
+      stale: false
+    });
+  }
+  for (const file of input.files) {
+    evidence.push({
+      id: `file:${file.path}`,
+      kind: file.isTest ? "test" : "file",
+      summary: `${file.isTest ? "Test" : "File"} ${file.path}`,
+      source: file.path,
+      confidence: scoreToConfidence(file.score),
+      reason: file.reason,
+      score: file.score,
+      stale: false
+    });
+  }
+  for (const symbol of input.symbols) {
+    evidence.push({
+      id: `symbol:${symbol.filePath}:${symbol.fqName}`,
+      kind: "symbol",
+      summary: `${symbol.kind} ${symbol.fqName}`,
+      source: symbol.filePath,
+      confidence: scoreToConfidence(symbol.score),
+      reason: symbol.reason,
+      score: symbol.score,
+      stale: false
+    });
+  }
+  for (const warning of input.warnings) {
+    const severityBoost = warning.severity === "critical" ? 100 : warning.severity === "warning" ? 75 : 45;
+    evidence.push({
+      id: `warning:${warning.filePath ?? "project"}:${stableSnippet(warning.message, 48)}`,
+      kind: "warning",
+      summary: stableSnippet(warning.message, 160),
+      source: warning.filePath ?? "project",
+      confidence: severityBoost / 100,
+      reason: warning.recommendation ?? "active warning matched intent",
+      score: severityBoost,
+      stale: false
+    });
+  }
+  input.constraints.forEach((rule, index) => {
+    evidence.push({
+      id: `constraint:${index + 1}`,
+      kind: "constraint",
+      summary: stableSnippet(rule, 160),
+      source: "project-memory.config.json",
+      confidence: 1,
+      reason: "critical project rule attached to matched repo evidence",
+      score: 100,
+      stale: false
+    });
+  });
+  return evidence.sort((a, b) => b.score - a.score || a.kind.localeCompare(b.kind) || a.source.localeCompare(b.source) || a.id.localeCompare(b.id));
+}
+
+function buildBudget(maxItems: number, rawCount: number, evidence: EvidenceItem[]): ContextBudget {
+  return {
+    maxItems,
+    usedItems: evidence.length,
+    facts: evidence.filter((item) => item.kind !== "constraint").length,
+    constraints: evidence.filter((item) => item.kind === "constraint").length,
+    references: evidence.filter((item) => item.kind === "file" || item.kind === "symbol" || item.kind === "module" || item.kind === "test").length,
+    truncated: rawCount > evidence.length,
+    defaultDeny: true
+  };
+}
+
+function scoreToConfidence(score: number): number {
+  return Math.max(0.3, Math.min(1, Math.round((score / 120) * 100) / 100));
+}
+
+function stableSnippet(value: string, maxLength: number): string {
+  const text = value.replace(/\s+/g, " ").trim();
+  return text.length <= maxLength ? text : `${text.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
+}
+
+function clampInt(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, Math.trunc(value)));
 }
 
 export interface RetrievalCandidate {

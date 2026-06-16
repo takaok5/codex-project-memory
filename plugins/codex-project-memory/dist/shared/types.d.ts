@@ -55,6 +55,8 @@ export type AgentRunPhase = "pre_task" | "pre_create" | "post_change" | "review"
 export type AgentRunStatus = "ready" | "initialized" | "refreshed" | "blocked" | "needs_review";
 export type AgentActionStatus = "completed" | "skipped" | "blocked";
 export type AgentDecisionVerdict = "continue" | "create_new_artifact" | "extend_existing_artifact" | "needs_human_review" | "blocked";
+export type AgentIntentKind = "implementation" | "debug" | "review" | "planning" | "pre_create" | "post_change" | "architecture" | "diagnostics" | "handoff";
+export type EvidenceKind = "file" | "symbol" | "module" | "route" | "test" | "diagnostic" | "warning" | "constraint" | "duplicate" | "diff";
 export declare const PMEM_ERROR_CODES: readonly ["INVALID_INPUT", "VALIDATION_ERROR", "NOT_INITIALIZED", "ALREADY_EXISTS", "CONFIG_ERROR", "FS_ERROR", "DB_ERROR", "INDEX_ERROR", "RENDER_ERROR", "AGENT_ERROR", "MCP_ERROR", "SAFETY_ERROR", "STATE_ERROR", "FRAME_NOT_FOUND", "TEMPLATE_ERROR", "INTERNAL_ERROR"];
 export type PmemErrorCode = (typeof PMEM_ERROR_CODES)[number];
 export interface ErrorPayload {
@@ -474,6 +476,8 @@ export interface IndexOutput {
 }
 export interface ContextPack {
     summary: string;
+    budget: ContextBudget;
+    evidence: EvidenceItem[];
     modules: ContextModule[];
     files: ContextFile[];
     symbols: ContextSymbol[];
@@ -481,6 +485,25 @@ export interface ContextPack {
     warnings: ContextWarning[];
     nextCommands: string[];
     visualFrame?: FrameRef;
+}
+export interface ContextBudget {
+    maxItems: number;
+    usedItems: number;
+    facts: number;
+    constraints: number;
+    references: number;
+    truncated: boolean;
+    defaultDeny: boolean;
+}
+export interface EvidenceItem {
+    id: string;
+    kind: EvidenceKind;
+    summary: string;
+    source: string;
+    confidence: number;
+    reason: string;
+    score: number;
+    stale: boolean;
 }
 export interface ContextModule {
     id: string;
@@ -561,6 +584,82 @@ export interface DuplicateOutput {
     matches: DuplicateCandidate[];
     recommendation: string;
 }
+export interface AgentRouteOutput {
+    intentKind: AgentIntentKind;
+    phase: AgentRunPhase;
+    scope: {
+        modules: string[];
+        files: string[];
+        artifactKind: ArtifactKind | null;
+    };
+    budget: {
+        maxEvidenceItems: number;
+        maxFiles: number;
+        maxSymbols: number;
+        maxWarnings: number;
+    };
+    agents: string[];
+    minConfidence: number;
+    defaultDeny: boolean;
+    reason: string;
+}
+export interface ImpactOutput {
+    summary: string;
+    blastRadius: "none" | "low" | "medium" | "high";
+    files: Array<{
+        path: string;
+        reason: string;
+        score: number;
+    }>;
+    symbols: Array<{
+        fqName: string;
+        filePath: string;
+        reason: string;
+    }>;
+    tests: Array<{
+        path: string;
+        reason: string;
+    }>;
+    diagnostics: Array<{
+        severity: DiagnosticSeverity;
+        filePath: string;
+        message: string;
+        tool: string;
+    }>;
+    risks: Array<{
+        level: RiskLevel;
+        message: string;
+        source: string;
+    }>;
+    contracts: string[];
+}
+export interface MemoryCurationOutput {
+    mode: "writer_gate";
+    accepted: Array<{
+        kind: EvidenceKind | "decision";
+        summary: string;
+        source: string;
+    }>;
+    rejected: Array<{
+        reason: string;
+        source: string;
+    }>;
+    stale: Array<{
+        kind: EvidenceKind;
+        source: string;
+        reason: string;
+    }>;
+    rules: string[];
+}
+export interface ConflictOutput {
+    status: "clear" | "conflict";
+    items: Array<{
+        severity: "warning" | "critical";
+        message: string;
+        sources: string[];
+        resolution: string;
+    }>;
+}
 export interface AgentArtifactInput {
     kind: ArtifactKind;
     moduleId?: string;
@@ -575,7 +674,7 @@ export interface AgentRunInput {
     render?: boolean;
 }
 export interface AgentAction {
-    name: "head" | "init" | "refresh" | "query" | "duplicates" | "frame" | "diff";
+    name: "head" | "init" | "router" | "refresh" | "query" | "duplicates" | "impact" | "runtime-evidence" | "curator" | "conflict" | "compressor" | "frame" | "diff";
     status: AgentActionStatus;
     reason: string;
 }
@@ -590,8 +689,12 @@ export interface AgentRunOutput {
     status: AgentRunStatus;
     actions: AgentAction[];
     head: HeadOutput;
+    route?: AgentRouteOutput;
     query?: QueryOutput;
     duplicates?: DuplicateOutput;
+    impact?: ImpactOutput;
+    curation?: MemoryCurationOutput;
+    conflicts?: ConflictOutput;
     refresh?: RefreshOutput;
     frame?: FrameOutput;
     diff?: DiffOutput;
@@ -622,6 +725,8 @@ export interface RetrievalAgentInput {
     maxFiles: number;
     maxSymbols: number;
     maxWarnings: number;
+    maxEvidenceItems?: number;
+    minScore?: number;
     includeVisualFrame: boolean;
 }
 export interface DuplicateAgentInput {

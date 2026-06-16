@@ -78,7 +78,7 @@ const FIXTURES: FixtureExpectation[] = [
 
 describe("universal language fixtures", () => {
   for (const expectation of FIXTURES) {
-    it(`runs the v0.4 public command sequence for ${expectation.fixture}`, async () => {
+    it(`runs the v0.5 public command sequence for ${expectation.fixture}`, async () => {
       const root = copyFixture(expectation.fixture);
       try {
         const outputs: unknown[] = [];

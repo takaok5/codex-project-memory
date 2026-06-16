@@ -17,8 +17,11 @@ Use this skill when working in a repository that has Codex Project Memory instal
 1. Prefer \`memory.agent\` for project-memory lifecycle orchestration.
 2. Use granular tools only when debugging or when a narrower read is enough.
 3. Before creating a service, controller, DTO, route, table, module, repository, adapter, job or utility, pass an \`artifact\` to \`memory.agent\`.
-4. Prefer the files, symbols, constraints and warnings returned by project-memory over broad repository search.
+4. Start from \`contextPack.evidence\`, \`contextPack.budget\`, impact and conflict output before broad repository search.
 5. After changes, use \`memory.agent\` with \`phase: "post_change"\` or \`pmem agent run --phase post_change --json\`.
+
+\`memory.agent\` is a single MCP entrypoint with internal specialized agents:
+intent router, evidence retriever, duplicate sentinel, impact assessor, runtime evidence importer, writer gate, conflict arbiter and context compressor.
 
 ## Supported lifecycle
 
@@ -37,6 +40,7 @@ Granular fallback tools: \`memory.head\`, \`memory.query\`, \`memory.duplicates\
 
 - Do not read \`.codex/memory/memory.db\` directly.
 - Do not dump broad source files into the answer.
+- Do not expand beyond the evidence budget unless project work clearly requires it.
 - Do not create duplicate artifacts when \`memory.duplicates\` returns high risk.
 - Do not rely on PNG existing; SVG and map JSON are the primary frame artifacts.
 - Do not treat optional subagents as required runtime.

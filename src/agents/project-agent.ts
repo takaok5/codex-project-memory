@@ -12,23 +12,31 @@ import { ARTIFACT_KINDS } from "../shared/types.js";
 import { getFrame } from "../store/frame-repository.js";
 import { getProjectState, setProjectStateValue } from "../store/project-state-repository.js";
 import { ensureSchema, openMemoryDb } from "../store/sqlite.js";
+import { runConflictArbiter } from "./conflict-arbiter.js";
 import { runDuplicateAgent } from "./duplicate-agent.js";
+import { runImpactAgent } from "./impact-agent.js";
+import { routeIntent } from "./intent-router.js";
+import { runMemoryCurator } from "./memory-curator.js";
 import { runRetrievalAgent } from "./retrieval-agent.js";
 import type {
   AgentAction,
   AgentArtifactInput,
   AgentDecision,
   AgentDecisionVerdict,
+  AgentRouteOutput,
   AgentRunInput,
   AgentRunOutput,
   AgentRunPhase,
   AgentRunStatus,
   ArtifactKind,
+  ConflictOutput,
   DiffOutput,
   DuplicateOutput,
   FrameName,
   FrameOutput,
   HeadOutput,
+  ImpactOutput,
+  MemoryCurationOutput,
   QueryOutput,
   RefreshOutput,
   RuntimeContext
@@ -48,6 +56,8 @@ export async function runProjectAgent(input: AgentRunInput, options: ProjectAgen
   const warnings: string[] = [];
   let head = readHead(options.cwd);
   actions.push({ name: "head", status: "completed", reason: `memory status: ${head.status}` });
+  const route = routeIntent({ intent: normalized.intent, phase: normalized.phase, artifact: normalized.artifact });
+  actions.push({ name: "router", status: "completed", reason: route.reason });
 
   let initialized = false;
   let refreshed = false;
@@ -60,6 +70,7 @@ export async function runProjectAgent(input: AgentRunInput, options: ProjectAgen
         status: "blocked",
         actions,
         head,
+        route,
         warnings,
         decision: {
           verdict: "blocked",
@@ -90,7 +101,7 @@ export async function runProjectAgent(input: AgentRunInput, options: ProjectAgen
 
   let query: QueryOutput | undefined;
   if (shouldQuery(normalized.phase)) {
-    query = queryMemory(options.cwd, normalized.intent, normalized.phase === "orient");
+    query = queryMemory(options.cwd, normalized.intent, normalized.phase === "orient", route);
     actions.push({ name: "query", status: "completed", reason: "retrieved project context" });
   } else {
     actions.push({ name: "query", status: "skipped", reason: `phase=${normalized.phase}` });
@@ -121,13 +132,47 @@ export async function runProjectAgent(input: AgentRunInput, options: ProjectAgen
     actions.push({ name: "diff", status: "skipped", reason: `phase=${normalized.phase}` });
   }
 
-  const decision = decide({ query, duplicates, initialized, refreshed });
+  if (route.agents.includes("runtime-evidence-importer")) {
+    actions.push({ name: "runtime-evidence", status: diff ? "completed" : "skipped", reason: diff ? "imported diff and diagnostics evidence" : "no runtime evidence for this phase" });
+  }
+
+  let impact: ImpactOutput | undefined;
+  if (route.agents.includes("impact-assessor")) {
+    impact = assessImpact(options.cwd, normalized.intent, query, duplicates, diff);
+    actions.push({ name: "impact", status: "completed", reason: impact.summary });
+  } else {
+    actions.push({ name: "impact", status: "skipped", reason: `phase=${normalized.phase}` });
+  }
+
+  let curation: MemoryCurationOutput | undefined;
+  if (route.agents.includes("memory-curator")) {
+    curation = runMemoryCurator({ phase: normalized.phase, query, duplicates, impact, diff });
+    actions.push({ name: "curator", status: "completed", reason: `${curation.accepted.length} accepted, ${curation.rejected.length} rejected` });
+  } else {
+    actions.push({ name: "curator", status: "skipped", reason: `phase=${normalized.phase}` });
+  }
+
+  let conflicts: ConflictOutput | undefined;
+  if (route.agents.includes("conflict-arbiter")) {
+    conflicts = runConflictArbiter({ query, duplicates, impact, curation, diff });
+    actions.push({ name: "conflict", status: "completed", reason: conflicts.status });
+  } else {
+    actions.push({ name: "conflict", status: "skipped", reason: `phase=${normalized.phase}` });
+  }
+
+  actions.push({ name: "compressor", status: "completed", reason: query ? `evidence budget ${query.contextPack.budget.usedItems}/${query.contextPack.budget.maxItems}` : `route budget ${route.budget.maxEvidenceItems}` });
+
+  const decision = decide({ query, duplicates, conflicts, initialized, refreshed });
   return buildOutput({
     status: statusFromDecision(decision.verdict, initialized, refreshed),
     actions,
     head,
+    route,
     query,
     duplicates,
+    impact,
+    curation,
+    conflicts,
     refresh,
     frame,
     diff,
@@ -281,17 +326,29 @@ async function refreshMemory(cwd: string, render: boolean, phase: AgentRunPhase)
   }
 }
 
-function queryMemory(cwd: string, intent: string, visual: boolean): QueryOutput {
+function queryMemory(cwd: string, intent: string, visual: boolean, route: AgentRouteOutput): QueryOutput {
   const ctx = resolveRuntimeContext({ cwd, openDb: true });
   const db = ctx.db as MemoryDb;
   try {
     return runRetrievalAgent(ctx, {
       intent,
-      maxFiles: clampInt(ctx.config.agents.maxFiles ?? 8, 1, 20),
-      maxSymbols: clampInt(ctx.config.agents.maxSymbols ?? 12, 1, 40),
-      maxWarnings: clampInt(ctx.config.agents.maxWarnings ?? 8, 0, 20),
+      maxFiles: clampInt(Math.min(ctx.config.agents.maxFiles ?? 8, route.budget.maxFiles), 1, 20),
+      maxSymbols: clampInt(Math.min(ctx.config.agents.maxSymbols ?? 12, route.budget.maxSymbols), 1, 40),
+      maxWarnings: clampInt(Math.min(ctx.config.agents.maxWarnings ?? 8, route.budget.maxWarnings), 0, 20),
+      maxEvidenceItems: route.budget.maxEvidenceItems,
+      minScore: Math.round(route.minConfidence * 40),
       includeVisualFrame: visual
     });
+  } finally {
+    db.close();
+  }
+}
+
+function assessImpact(cwd: string, intent: string, query?: QueryOutput, duplicates?: DuplicateOutput, diff?: DiffOutput): ImpactOutput {
+  const ctx = resolveRuntimeContext({ cwd, openDb: true });
+  const db = ctx.db as MemoryDb;
+  try {
+    return runImpactAgent(ctx, { intent, query, duplicates, diff });
   } finally {
     db.close();
   }
@@ -356,7 +413,7 @@ function diffMemory(cwd: string): DiffOutput {
   }
 }
 
-function decide(input: { query?: QueryOutput; duplicates?: DuplicateOutput; initialized: boolean; refreshed: boolean }): AgentDecision {
+function decide(input: { query?: QueryOutput; duplicates?: DuplicateOutput; conflicts?: ConflictOutput; initialized: boolean; refreshed: boolean }): AgentDecision {
   if (input.duplicates?.risk === "high") {
     return {
       verdict: "extend_existing_artifact",
@@ -371,6 +428,14 @@ function decide(input: { query?: QueryOutput; duplicates?: DuplicateOutput; init
       message: input.duplicates.recommendation,
       filesToOpen: filesToOpen(input.query, input.duplicates),
       nextCommands: ["memory.duplicates"]
+    };
+  }
+  if (input.conflicts?.items.some((item) => item.severity === "critical")) {
+    return {
+      verdict: "needs_human_review",
+      message: input.conflicts.items.find((item) => item.severity === "critical")?.resolution ?? "Resolve memory conflict before continuing.",
+      filesToOpen: filesToOpen(input.query, input.duplicates),
+      nextCommands: ["memory.agent"]
     };
   }
   const verdict: AgentDecisionVerdict = input.duplicates?.risk === "low" ? "create_new_artifact" : "continue";
@@ -429,8 +494,12 @@ function buildOutput(input: {
   status: AgentRunStatus;
   actions: AgentAction[];
   head: HeadOutput;
+  route?: AgentRouteOutput;
   query?: QueryOutput;
   duplicates?: DuplicateOutput;
+  impact?: ImpactOutput;
+  curation?: MemoryCurationOutput;
+  conflicts?: ConflictOutput;
   refresh?: RefreshOutput;
   frame?: FrameOutput;
   diff?: DiffOutput;
@@ -442,8 +511,12 @@ function buildOutput(input: {
     status: input.status,
     actions: input.actions,
     head: input.head,
+    ...(input.route ? { route: input.route } : {}),
     ...(input.query ? { query: input.query } : {}),
     ...(input.duplicates ? { duplicates: input.duplicates } : {}),
+    ...(input.impact ? { impact: input.impact } : {}),
+    ...(input.curation ? { curation: input.curation } : {}),
+    ...(input.conflicts ? { conflicts: input.conflicts } : {}),
     ...(input.refresh ? { refresh: input.refresh } : {}),
     ...(input.frame ? { frame: input.frame } : {}),
     ...(input.diff ? { diff: input.diff } : {}),

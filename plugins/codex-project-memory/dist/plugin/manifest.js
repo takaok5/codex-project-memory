@@ -7,7 +7,7 @@ const relativePathSchema = z.string().min(1).refine(isSafeRelativePath, {
 const pluginManifestSchema = z
     .object({
     name: z.literal("codex-project-memory"),
-    version: z.literal("0.4.2"),
+    version: z.literal("0.5.0"),
     description: z.string().min(1),
     author: z.object({ name: z.string().min(1), email: z.string().optional(), url: z.string().url().optional() }).strict(),
     skills: z.literal("./skills/"),
@@ -33,7 +33,7 @@ export function buildPluginManifest(options) {
     const manifest = {
         name: options.packageName,
         version: options.version,
-        description: options.description ?? "Local repository memory for Codex with SQLite, deterministic frames, MCP tools, lazy compiler diagnostics and an implicit skill lifecycle.",
+        description: options.description ?? "Local repository memory for Codex with SQLite, deterministic frames, MCP tools, lazy compiler diagnostics and evidence-first agent orchestration.",
         author: {
             name: "Project Memory Maintainers"
         },
@@ -43,7 +43,7 @@ export function buildPluginManifest(options) {
         interface: {
             displayName: "Codex Project Memory",
             shortDescription: "Local repository memory for Codex.",
-            longDescription: "Indexes repository structure into local SQLite, exposes compact MCP tools, renders deterministic SVG maps, adds lazy compiler-assisted diagnostics and uses Codex-supported implicit skill invocation as the project lifecycle.",
+            longDescription: "Indexes repository structure into local SQLite, exposes compact MCP tools, renders deterministic SVG maps, adds lazy compiler-assisted diagnostics and uses an evidence-first memory.agent orchestrator with internal specialized agents.",
             developerName: "Project Memory Maintainers",
             category: "Productivity",
             capabilities: ["MCP", "CLI", "Implicit Skill"],

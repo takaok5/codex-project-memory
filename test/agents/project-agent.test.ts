@@ -13,14 +13,25 @@ describe("project memory agent", () => {
       expect(output).toMatchObject({
         version: 2,
         status: "refreshed",
+        route: { defaultDeny: true, intentKind: "implementation" },
         refresh: { changedOnly: true, render: { skipped: false } },
+        impact: { blastRadius: expect.any(String) },
+        curation: { mode: "writer_gate" },
+        conflicts: { status: "clear" },
         decision: { verdict: "continue" }
       });
       expect(output.actions).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: "router", status: "completed" }),
         expect.objectContaining({ name: "init", status: "completed" }),
         expect.objectContaining({ name: "refresh", status: "completed" }),
-        expect.objectContaining({ name: "query", status: "completed" })
+        expect.objectContaining({ name: "query", status: "completed" }),
+        expect.objectContaining({ name: "impact", status: "completed" }),
+        expect.objectContaining({ name: "curator", status: "completed" }),
+        expect.objectContaining({ name: "conflict", status: "completed" }),
+        expect.objectContaining({ name: "compressor", status: "completed" })
       ]));
+      expect(output.query?.contextPack.budget.defaultDeny).toBe(true);
+      expect(output.query?.contextPack.evidence.length).toBeGreaterThan(0);
       expect(output.head.currentFrame?.svg).toBe(".codex/memory/current.svg");
       expect(output.decision.filesToOpen.every((item) => !path.isAbsolute(item) && !item.includes("\\"))).toBe(true);
     } finally {
@@ -57,7 +68,9 @@ describe("project memory agent", () => {
 
       expect(output).toMatchObject({
         status: "blocked",
+        route: { intentKind: "pre_create", agents: expect.arrayContaining(["duplicate-sentinel", "conflict-arbiter"]) },
         duplicates: { risk: "high", verdict: "extend_existing_artifact" },
+        conflicts: { status: "conflict" },
         decision: { verdict: "extend_existing_artifact" }
       });
       expect(output.decision.verdict).not.toBe("create_new_artifact");
@@ -76,7 +89,8 @@ describe("project memory agent", () => {
       expect(output.diff).toBeDefined();
       expect(output.actions).toEqual(expect.arrayContaining([
         expect.objectContaining({ name: "refresh", status: "completed" }),
-        expect.objectContaining({ name: "diff", status: "completed" })
+        expect.objectContaining({ name: "diff", status: "completed" }),
+        expect.objectContaining({ name: "runtime-evidence", status: "completed" })
       ]));
     } finally {
       rmSync(root, { recursive: true, force: true });

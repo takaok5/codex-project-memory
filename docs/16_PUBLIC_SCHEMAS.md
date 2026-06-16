@@ -63,14 +63,17 @@ frame, svg, png, map, sourceHash, generatedAt
 ```ts
 type MemoryStatus = "not_initialized" | "initializing" | "fresh" | "stale" | "dirty" | "error";
 type MemoryEvent = "init_started" | "init_completed" | "index_started" | "index_completed" | "render_completed" | "mark_dirty" | "mark_error" | "doctor_ok";
-type LanguageKind = "typescript" | "javascript";
+type LanguageId = string;
+type LanguageKind = LanguageId;
 type WarningSeverity = "info" | "warning" | "critical";
-type WarningSource = "parser" | "indexer" | "renderer" | "agent" | "mcp" | "config" | "inferred";
+type WarningSource = "parser" | "indexer" | "renderer" | "agent" | "mcp" | "config" | "inferred" | "diagnostic";
 type RiskLevel = "low" | "medium" | "high";
 type DuplicateVerdict = "create_new_artifact" | "extend_existing_artifact" | "needs_human_review";
 type FrameName = "current" | "overview" | "modules" | "duplicates" | "risks";
 type FrameType = "current" | "overview" | "module_map" | "duplicate_map" | "risk_map";
 type AgentName = "retrieval" | "duplicate" | "drift" | "architecture" | "render";
+type AgentIntentKind = "implementation" | "debug" | "review" | "planning" | "pre_create" | "post_change" | "architecture" | "diagnostics" | "handoff";
+type EvidenceKind = "file" | "symbol" | "module" | "route" | "test" | "diagnostic" | "warning" | "constraint" | "duplicate" | "diff";
 
 type ArtifactKind =
   | "service"
@@ -535,6 +538,8 @@ interface AgentsListOutput {
 ```ts
 interface ContextPack {
   summary: string;                       // 1..500 chars
+  budget: ContextBudget;
+  evidence: EvidenceItem[];              // <= budget.maxItems, sorted score desc
   modules: ContextModule[];              // <= maxFiles-ish, sorted score desc
   files: ContextFile[];
   symbols: ContextSymbol[];
@@ -542,6 +547,27 @@ interface ContextPack {
   warnings: ContextWarning[];
   nextCommands: string[];
   visualFrame?: FrameRef;
+}
+
+interface ContextBudget {
+  maxItems: number;
+  usedItems: number;
+  facts: number;
+  constraints: number;
+  references: number;
+  truncated: boolean;
+  defaultDeny: true;
+}
+
+interface EvidenceItem {
+  id: string;
+  kind: EvidenceKind;
+  summary: string;
+  source: RelativePath | string;          // no absolute path, no source dump
+  confidence: number;                    // 0..1
+  reason: string;
+  score: number;
+  stale: boolean;
 }
 
 interface ContextModule {
@@ -698,17 +724,71 @@ interface MemoryAgentInput {
   allowRefresh?: boolean;     // default true
   render?: boolean;           // default true
 }
+
+interface AgentRouteOutput {
+  intentKind: AgentIntentKind;
+  phase: AgentRunPhase;
+  scope: {
+    modules: string[];
+    files: RelativePath[];
+    artifactKind: ArtifactKind | null;
+  };
+  budget: {
+    maxEvidenceItems: number;
+    maxFiles: number;
+    maxSymbols: number;
+    maxWarnings: number;
+  };
+  agents: string[];
+  minConfidence: number;
+  defaultDeny: true;
+  reason: string;
+}
+
+interface ImpactOutput {
+  summary: string;
+  blastRadius: "none" | "low" | "medium" | "high";
+  files: Array<{ path: RelativePath; reason: string; score: number }>;
+  symbols: Array<{ fqName: string; filePath: RelativePath; reason: string }>;
+  tests: Array<{ path: RelativePath; reason: string }>;
+  diagnostics: Array<{ severity: "error" | "warning" | "info"; filePath: RelativePath; message: string; tool: string }>;
+  risks: Array<{ level: RiskLevel; message: string; source: string }>;
+  contracts: string[];
+}
+
+interface MemoryCurationOutput {
+  mode: "writer_gate";
+  accepted: Array<{ kind: EvidenceKind | "decision"; summary: string; source: string }>;
+  rejected: Array<{ reason: string; source: string }>;
+  stale: Array<{ kind: EvidenceKind; source: string; reason: string }>;
+  rules: string[];
+}
+
+interface ConflictOutput {
+  status: "clear" | "conflict";
+  items: Array<{
+    severity: "warning" | "critical";
+    message: string;
+    sources: string[];
+    resolution: string;
+  }>;
+}
+
 interface MemoryAgentOutput {
   version: 2;
   status: AgentRunStatus;
   actions: Array<{
-    name: "head" | "init" | "refresh" | "query" | "duplicates" | "frame" | "diff";
+    name: "head" | "init" | "router" | "refresh" | "query" | "duplicates" | "impact" | "runtime-evidence" | "curator" | "conflict" | "compressor" | "frame" | "diff";
     status: "completed" | "skipped" | "blocked";
     reason: string;
   }>;
   head: HeadOutput;
+  route?: AgentRouteOutput;
   query?: QueryOutput;
   duplicates?: DuplicateOutput;
+  impact?: ImpactOutput;
+  curation?: MemoryCurationOutput;
+  conflicts?: ConflictOutput;
   refresh?: RefreshOutput;
   frame?: FrameOutput;
   diff?: DiffOutput;
@@ -1005,7 +1085,7 @@ CLI `DiffOutput` wraps added/removed files and changedWarnings as in section 6.3
 ```ts
 interface PluginManifest {
   name: "codex-project-memory";
-  version: "0.2.0";
+  version: "0.5.0";
   description: string;
   author: { name: string; email?: string; url?: string };
   skills: "./skills/";

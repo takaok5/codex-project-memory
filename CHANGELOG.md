@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0 - 2026-06-16
+
+- Added evidence-first `memory.agent` orchestration behind the existing MCP
+  surface.
+- Added a deterministic intent router with explicit budgets and default-deny
+  retrieval.
+- Added bounded `contextPack.evidence` and `contextPack.budget` fields while
+  preserving existing modules/files/symbols/warnings fields.
+- Added internal specialized agents for impact assessment, runtime evidence
+  import, memory curation/writer-gating, conflict arbitration and context
+  compression.
+- Kept a single memory MCP entrypoint for lifecycle orchestration to avoid
+  context saturation from multiple memory servers.
+
 ## 0.4.2 - 2026-06-15
 
 - Added explicit `doctor` capability status for compiler-assisted diagnostics:
