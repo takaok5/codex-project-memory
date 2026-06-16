@@ -19,12 +19,13 @@ describe("evidence repository", () => {
           status: "failed",
           exitCode: 1,
           durationMs: 123,
-          outputSummary: `Failure at ${root}\\src\\app.ts`,
-          items: [{ kind: "test_result", filePath: "src/app.ts", severity: "error", message: `failed ${root}\\src\\app.ts`, startLine: 2, endLine: 2 }]
+          outputSummary: `Failure at ${root}\\src\\app.ts and /tmp/pmem-evidence-posix/src/app.ts`,
+          items: [{ kind: "test_result", filePath: "src/app.ts", severity: "error", message: `failed ${root}\\src\\app.ts and /tmp/pmem-evidence-posix/src/app.ts`, startLine: 2, endLine: 2 }]
         });
         expect(runtime.runId).toBeGreaterThan(0);
         expect(listRuntimeEvidenceRuns(db, 1)[0]).toMatchObject({ kind: "test", status: "failed" });
         expect(JSON.stringify(listRuntimeEvidenceItems(db))).not.toContain(root);
+        expect(JSON.stringify(listRuntimeEvidenceItems(db))).not.toContain("/tmp/pmem-evidence-posix");
         expect(JSON.stringify(listRuntimeEvidenceItems(db))).not.toContain("\\");
 
         const decisionId = upsertArchitectureDecision(db, {

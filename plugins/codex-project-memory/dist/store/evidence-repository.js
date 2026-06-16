@@ -283,7 +283,7 @@ function normalizeRuntimeItem(runId, input, createdAt) {
     };
 }
 function sanitizeSource(value) {
-    const normalized = sanitizeText(value, 240).replace(/[A-Za-z]:[\\/][^\s'")]+/g, "<path>").replaceAll("\\", "/");
+    const normalized = redactAbsolutePaths(sanitizeText(value, 240)).replaceAll("\\", "/");
     if (normalized.includes("/") && !normalized.startsWith("runtime:")) {
         return assertRelativePosix(normalized);
     }
@@ -301,8 +301,13 @@ function existingModuleId(db, value) {
     return row?.id ?? null;
 }
 function sanitizeText(value, maxLength) {
-    const normalized = value.replace(/\s+/g, " ").replace(/[A-Za-z]:[\\/][^\s'")]+/g, "<path>").replaceAll("\\", "/").trim();
+    const normalized = redactAbsolutePaths(value.replace(/\s+/g, " ")).replaceAll("\\", "/").trim();
     return normalized.length <= maxLength ? normalized : `${normalized.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
+}
+function redactAbsolutePaths(value) {
+    return value
+        .replace(/[A-Za-z]:[\\/][^\s'")]+/g, "<path>")
+        .replace(/(^|[\s'("(=])\/(?!\/)[^\s'")]+/g, "$1<path>");
 }
 function normalizeLine(value) {
     if (!value || !Number.isFinite(value))
