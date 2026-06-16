@@ -58,7 +58,7 @@ export async function cmdInit(options: InitOptions): Promise<CliResult<InitOutpu
         memoryRoot: paths.memoryRootRel,
         config: paths.configRel,
         db: paths.dbRel,
-        schemaVersion: 3,
+        schemaVersion: 4,
         created,
         skipped
       },

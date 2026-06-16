@@ -32,13 +32,13 @@ export function ensureSchema(db) {
         }
         db.transaction(() => {
             db.exec(SCHEMA_SQL);
-            db.pragma("user_version = 3");
+            db.pragma("user_version = 4");
             const now = nowIso();
             const insert = db.prepare("INSERT OR IGNORE INTO project_state(key, value, updated_at) VALUES (?, ?, ?)");
             for (const [key, value] of Object.entries(DEFAULT_PROJECT_STATE)) {
                 insert.run(key, value, now);
             }
-            db.prepare("UPDATE project_state SET value = ?, updated_at = ? WHERE key = ?").run("3", now, "schema_version");
+            db.prepare("UPDATE project_state SET value = ?, updated_at = ? WHERE key = ?").run("4", now, "schema_version");
         })();
     }
     catch (error) {
@@ -143,11 +143,16 @@ export const REQUIRED_TABLES = [
     "frames",
     "retrieval_logs",
     "language_capabilities",
-    "diagnostics"
+    "diagnostics",
+    "runtime_evidence_runs",
+    "runtime_evidence_items",
+    "evidence_records",
+    "architecture_decisions",
+    "evidence_feedback"
 ];
 export const FORBIDDEN_TABLES = ["features", "file_edges", "embeddings", "vectors", "source_chunks", "snapshot_records", "remote_sync", "team_memory"];
 const DEFAULT_PROJECT_STATE = {
-    schema_version: "3",
+    schema_version: "4",
     memory_status: "fresh",
     memory_dirty: "false",
     dirty_reason: "",

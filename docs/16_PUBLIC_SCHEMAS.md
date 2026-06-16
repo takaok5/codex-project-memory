@@ -1,7 +1,7 @@
-# Codex Project Memory Plugin — public schemas v0.1
+﻿# Codex Project Memory Plugin - public schemas v0.6
 
 **Stato:** schema pubblici autoritativi per config, CLI, MCP, renderer, snapshot, errori e warning.
-**Scopo:** eliminare output “simili ma non identici”.  
+**Scopo:** eliminare output â€œsimili ma non identiciâ€.
 **Regola:** CLI/MCP/generated/map/snapshot devono validare contro questo documento. Esempi in `06`, `07`, `08`, `09` e `12` sono illustrativi se divergono da questo file.
 
 ---
@@ -23,14 +23,14 @@ Score = number finite, 0..1 se similarity, altrimenti score intero/decimale docu
 
 | Output | Campi extra |
 |---|---|
-| CLI `CliResult` | vietati al top-level; `data` può avere solo campi dello schema comando |
+| CLI `CliResult` | vietati al top-level; `data` puÃ² avere solo campi dello schema comando |
 | MCP tool output | vietati salvo future schema version documentata |
 | Config | chiavi sconosciute vietate; chiavi legacy possono generare `config_deprecated_key` solo se documentate |
 | Generated JSON | vietati nei file canonici salvo bump schema |
 | Frame map | vietati al top-level; `items[].metadata` ammesso solo se oggetto compatto senza path assoluti |
 | Snapshot | vietati salvo bump `version` |
 
-### 1.3 Ordine proprietà per JSON stabile
+### 1.3 Ordine proprietÃ  per JSON stabile
 
 Ogni writer pubblico deve costruire oggetti in questo ordine:
 
@@ -73,7 +73,12 @@ type FrameName = "current" | "overview" | "modules" | "duplicates" | "risks";
 type FrameType = "current" | "overview" | "module_map" | "duplicate_map" | "risk_map";
 type AgentName = "retrieval" | "duplicate" | "drift" | "architecture" | "render";
 type AgentIntentKind = "implementation" | "debug" | "review" | "planning" | "pre_create" | "post_change" | "architecture" | "diagnostics" | "handoff";
-type EvidenceKind = "file" | "symbol" | "module" | "route" | "test" | "diagnostic" | "warning" | "constraint" | "duplicate" | "diff";
+type RuntimeEvidenceKind = "build" | "test" | "lint" | "typecheck" | "command";
+type RuntimeEvidenceStatus = "passed" | "failed" | "timeout" | "error";
+type RuntimeEvidenceItemKind = "summary" | "diagnostic" | "test_result" | "build_result" | "lint_result" | "typecheck_result";
+type EvidenceRecordStatus = "active" | "stale" | "contradicted";
+type EvidenceFeedbackSignal = "useful" | "not_useful" | "accepted" | "rejected" | "opened";
+type EvidenceKind = "file" | "symbol" | "module" | "route" | "test" | "diagnostic" | "warning" | "constraint" | "duplicate" | "diff" | "decision";
 
 type ArtifactKind =
   | "service"
@@ -213,7 +218,7 @@ render_skipped: visual frame may be stale
 
 ```ts
 interface ProjectMemoryConfig {
-  schemaVersion: 1;
+  schemaVersion: 4;
   projectName: string;              // 1..120 chars
   scan: {
     include: string[];              // glob list, min 1
@@ -529,6 +534,85 @@ interface AgentsListOutput {
   available: Array<{ name: string; template: string }>;
   installed: Array<{ name: string; path: AgentPath }>;
 }
+
+interface RuntimeEvidenceOutput {
+  runs: Array<{
+    id: number;
+    kind: RuntimeEvidenceKind;
+    command: string;
+    status: RuntimeEvidenceStatus;
+    exitCode: number | null;
+    durationMs: number;
+    outputSummary: string;
+    createdAt: IsoDateTime;
+  }>;
+  items: Array<{
+    id: number;
+    runId: number;
+    kind: RuntimeEvidenceItemKind;
+    filePath: RelativePath | null;
+    severity: "error" | "warning" | "info";
+    message: string;
+    startLine: number | null;
+    endLine: number | null;
+    fingerprint: Sha256;
+    createdAt: IsoDateTime;
+  }>;
+  summary: {
+    totalRuns: number;
+    passed: number;
+    failed: number;
+    timeout: number;
+    error: number;
+    totalItems: number;
+    truncated: boolean;
+  };
+}
+
+interface EvidenceRecord {
+  id: number;
+  kind: EvidenceKind | "runtime";
+  source: RelativePath | string;
+  summary: string;
+  filePath?: RelativePath | null;
+  symbolFqName?: string | null;
+  moduleId?: string | null;
+  runtimeRunId?: number | null;
+  architectureDecisionId?: number | null;
+  confidence: number;
+  score: number;
+  status: EvidenceRecordStatus;
+  staleReason?: string | null;
+  metadata?: Record<string, JsonValue>;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+interface ArchitectureDecisionRecord {
+  id: number;
+  title: string;
+  summary: string;
+  rationale: string;
+  moduleId?: string | null;
+  filePath?: RelativePath | null;
+  symbolFqName?: string | null;
+  status: EvidenceRecordStatus;
+  supersededById: number | null;
+  invalidatedByEvidenceId: number | null;
+  createdAt: IsoDateTime;
+  updatedAt: IsoDateTime;
+}
+
+interface EvidenceFeedbackRecord {
+  id: number;
+  evidenceId: number | null;
+  evidenceKey: string;
+  signal: EvidenceFeedbackSignal;
+  weight: number;
+  intent: Sha256;
+  source: string;
+  createdAt: IsoDateTime;
+}
 ```
 
 ---
@@ -543,6 +627,7 @@ interface ContextPack {
   modules: ContextModule[];              // <= maxFiles-ish, sorted score desc
   files: ContextFile[];
   symbols: ContextSymbol[];
+  decisions: ContextDecision[];
   constraints: string[];
   warnings: ContextWarning[];
   nextCommands: string[];
@@ -589,6 +674,16 @@ interface ContextSymbol {
   fqName: string;
   kind: string;
   filePath: RelativePath;
+  reason: string;
+  score: number;
+}
+
+interface ContextDecision {
+  id: number;
+  title: string;
+  status: EvidenceRecordStatus;
+  summary: string;
+  source: RelativePath | string;
   reason: string;
   score: number;
 }
@@ -789,6 +884,12 @@ interface MemoryAgentOutput {
   impact?: ImpactOutput;
   curation?: MemoryCurationOutput;
   conflicts?: ConflictOutput;
+  ledger?: {
+    acceptedEvidenceIds: number[];
+    architectureDecisionIds: number[];
+    feedbackIds: number[];
+  };
+  runtimeEvidence?: RuntimeEvidenceOutput;
   refresh?: RefreshOutput;
   frame?: FrameOutput;
   diff?: DiffOutput;
@@ -1007,7 +1108,7 @@ The six granular tools remain supported for narrow reads/debugging: `memory.head
 interface MemorySnapshot {
   version: 1;
   createdAt: IsoDateTime;
-  schemaVersion: "1" | null;
+  schemaVersion: "1" | "2" | "3" | "4" | null;
   configHash: Sha256 | null;
   files: Array<{
     path: RelativePath;
@@ -1085,7 +1186,7 @@ CLI `DiffOutput` wraps added/removed files and changedWarnings as in section 6.3
 ```ts
 interface PluginManifest {
   name: "codex-project-memory";
-  version: "0.5.0";
+  version: "0.6.0";
   description: string;
   author: { name: string; email?: string; url?: string };
   skills: "./skills/";
@@ -1107,11 +1208,11 @@ interface PluginManifest {
 
 interface McpConfig {
   mcpServers: {
-    "project-memory": { command: "node"; args: ["dist/mcp/server.js"] }
+    "project-memory": { command: "node"; args: ["scripts/bootstrap-mcp.mjs"] }
   };
 }
 ```
 
-Plugin-declared hooks are not part of the v0.2 Codex app package because current local plugin validation rejects the `hooks` manifest field. The supported lifecycle replacement is `skills/repo-memory/agents/openai.yaml` with `policy.allow_implicit_invocation=true`, `memory.agent` and the six granular MCP tools declared under `dependencies.tools`.
+Plugin-declared hooks are not part of the Codex app package because current local plugin validation rejects the `hooks` manifest field. The supported lifecycle replacement is the implicit `repo-memory` skill plus `memory.agent` and the granular MCP tools.
 
 No additional transport fields in v0.2.

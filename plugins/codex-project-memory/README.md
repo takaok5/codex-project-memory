@@ -2,18 +2,21 @@
 
 Local repository memory for Codex. It indexes project structure into local SQLite, exposes compact MCP tools, and renders deterministic SVG/map frames.
 
-## What v0.5 does
+## What v0.6 does
 
 - Stores memory locally under `.codex/memory`.
 - Indexes TypeScript/JavaScript deeply with `ts-morph`.
 - Detects a broad programming-language set and structurally indexes Python, Go, Java, C#, PHP, Ruby, Rust, C/C++, Kotlin, Swift, Shell, Dart, Scala, R, Lua, Elixir, Clojure, SQL, HTML/CSS and additional common languages.
 - Writes explicit language capability flags so fallback/degraded analysis is visible in generated JSON and snapshots.
 - Lazily uses user-space language analyzers from `.codex/memory/cache/language-tools` when available or installable; it never changes global system PATH or installs system packages.
-- Runs compiler-assisted diagnostics when possible and stores normalized diagnostics in SQLite schema v3 plus `generated/diagnostics.json`.
+- Runs compiler-assisted diagnostics when possible and stores normalized diagnostics in SQLite plus `generated/diagnostics.json`.
 - Uses a single `memory.agent` orchestrator with internal specialized agents: intent router, evidence retriever, duplicate sentinel, impact assessor, runtime evidence importer, writer gate, conflict arbiter and context compressor.
+- Persists a schema v4 evidence ledger with accepted/rejected evidence, duplicate risks, runtime evidence, invalidable architecture decisions and feedback signals.
+- Hashes intents in retrieval logs and feedback so conversation text does not become durable project memory.
 - Retrieves project context with explicit evidence budgets and default-deny filtering, rather than broad semantic memory dumps.
 - Exposes MCP tools: `memory.agent`, `memory.head`, `memory.query`, `memory.duplicates`, `memory.frame`, `memory.refresh`, `memory.diff`.
 - Adds CLI diagnostics: `pmem diagnostics --json`, with `--language`, `--changed`, and `--no-install`.
+- Adds CLI evidence operations: `pmem evidence run`, `pmem evidence list`, `pmem decisions ...`, and `pmem feedback ...`.
 - Provides `pmem agent run` as the project-local orchestration entrypoint.
 - Produces deterministic SVG and map JSON. PNG export is best-effort and optional.
 
@@ -23,7 +26,7 @@ Local repository memory for Codex. It indexes project structure into local SQLit
 - Codex with plugin and MCP support.
 - `sharp` is optional. If PNG generation is unavailable, SVG and map JSON remain the required visual outputs.
 
-## What v0.5 does not do
+## What v0.6 does not do
 
 - No embeddings or vector DB.
 - No cloud backend.
@@ -31,6 +34,7 @@ Local repository memory for Codex. It indexes project structure into local SQLit
 - No direct source-code modifications.
 - No required LLM in the core runtime.
 - No second memory MCP server for the same project context.
+- No automatic command execution from MCP; runtime evidence is imported through explicit CLI runs or bounded agent summaries.
 - No claim that fallback analysis is compiler-equivalent for every language; capability flags identify the tier per language.
 - No global compiler, SDK, PATH, registry or project lockfile modifications.
 
@@ -120,11 +124,21 @@ This repository includes:
 
 Codex app plugin validation does not currently support plugin-declared hooks. The plugin uses a supported replacement: implicit skill invocation plus MCP tools. On project work, Codex should call `memory.head`, use `memory.query` before edits, use `memory.duplicates` before new artifacts, and call `memory.refresh` after source changes.
 
-In v0.5 the preferred entrypoint is `memory.agent`, or the CLI equivalent:
+In v0.6 the preferred entrypoint is `memory.agent`, or the CLI equivalent:
 
 ```bash
 pmem agent run "<intent>" --json
 pmem agent run "<intent>" --phase pre_create --kind service --module <moduleId> --name <ProposedName> --json
+```
+
+The evidence ledger can also be managed explicitly:
+
+```bash
+pmem evidence run --kind test --json
+pmem evidence list --json
+pmem decisions add --title "Use AccessService for access checks" --summary "Access authorization stays in AccessService." --json
+pmem decisions list --json
+pmem feedback --evidence file:src/access/access.service.ts --signal useful --json
 ```
 
 ## Duplicate guard

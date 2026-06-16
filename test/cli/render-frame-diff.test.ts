@@ -33,7 +33,7 @@ describe("render/frame/diff CLI commands", () => {
           svg: ".codex/memory/current.svg",
           png: null,
           map: ".codex/memory/current.map.json",
-          summary: { warnings: 3 }
+          summary: { warnings: 0 }
         }
       });
       await expect(cmdDiff({ cwd: root, from: "latest", to: "current" })).resolves.toMatchObject({

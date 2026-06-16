@@ -10,7 +10,7 @@ import { getProjectState, markMemoryDirty, markMemoryError, markMemoryFresh, set
 describe("project state repository", () => {
   it("reads defaults and updates status fields", () => {
     withDb((db) => {
-      expect(getProjectState(db)).toMatchObject({ schemaVersion: "3", status: "fresh", memoryDirty: false });
+      expect(getProjectState(db)).toMatchObject({ schemaVersion: "4", status: "fresh", memoryDirty: false });
       markMemoryDirty(db, "test");
       expect(getProjectState(db)).toMatchObject({ status: "dirty", memoryDirty: true, dirtyReason: "test" });
       markMemoryFresh(db, "2026-06-14T00:00:00.000Z");

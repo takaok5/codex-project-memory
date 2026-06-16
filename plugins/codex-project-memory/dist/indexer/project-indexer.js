@@ -8,7 +8,7 @@ import { markMemoryFresh, setProjectStateValue } from "../store/project-state-re
 import { replaceRoutesForFile } from "../store/route-repository.js";
 import { searchSymbols, replaceSymbolsForFile } from "../store/symbol-repository.js";
 import { replaceTestLinksForFile } from "../store/test-repository.js";
-import { addWarning, listActiveWarnings, replaceWarningsForFile } from "../store/warning-repository.js";
+import { listActiveWarnings, replaceWarningsForFile } from "../store/warning-repository.js";
 import { scanProjectFiles } from "./scan.js";
 import { inferModuleId } from "./module-inference.js";
 import { buildLanguageCapability } from "./language.js";
@@ -134,8 +134,14 @@ export async function indexProject(ctx, options = {}) {
     for (const [fileId, edges] of importsByFile) {
         replaceEdgesForFile(db, fileId, edges);
     }
+    const warningsByFile = new Map();
     for (const warning of resolved.warnings) {
-        addWarning(db, warning);
+        if (!warning.fileId)
+            continue;
+        warningsByFile.set(warning.fileId, [...(warningsByFile.get(warning.fileId) ?? []), warning]);
+    }
+    for (const fileId of touchedFileIds) {
+        replaceWarningsForFile(db, fileId, "indexer", warningsByFile.get(fileId) ?? []);
     }
     const testLinks = inferTestTargets(filesAfterSymbols, searchSymbols(db, {}));
     for (const file of filesAfterSymbols.filter((item) => item.isTest && item.id)) {

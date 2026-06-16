@@ -69,7 +69,7 @@ export function createMemorySnapshot(ctx: RuntimeContext, options: { ref?: "late
   const snapshot: MemorySnapshot = {
     version: 1,
     createdAt: nowIso(),
-    schemaVersion: "3",
+    schemaVersion: "4",
     configHash: canonicalJsonHash(ctx.config),
     languageCapabilities: listLanguageCapabilities(db).map((item) => ({ ...item })),
     diagnostics,

@@ -7,7 +7,7 @@ import { ensureSchema, FORBIDDEN_TABLES, openMemoryDb, REQUIRED_TABLES } from ".
 import { addWarning } from "../../src/store/warning-repository.js";
 
 describe("sqlite schema", () => {
-  it("creates schema v3 with foreign keys, diagnostics and no forbidden tables", () => {
+  it("creates schema v4 with foreign keys, diagnostics, evidence tables and no forbidden tables", () => {
     const root = mkdtempSync(path.join(tmpdir(), "pmem-db-"));
     try {
       const paths = getMemoryPaths(root);
@@ -15,7 +15,7 @@ describe("sqlite schema", () => {
       try {
         ensureSchema(db);
         expect(db.pragma("foreign_keys", { simple: true })).toBe(1);
-        expect(db.pragma("user_version", { simple: true })).toBe(3);
+        expect(db.pragma("user_version", { simple: true })).toBe(4);
         const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{ name: string }>).map((row) => row.name);
         expect(REQUIRED_TABLES.every((table) => tables.includes(table))).toBe(true);
         expect(FORBIDDEN_TABLES.some((table) => tables.includes(table))).toBe(false);
@@ -59,7 +59,7 @@ describe("sqlite schema", () => {
           PRAGMA user_version = 1;
         `);
         ensureSchema(db);
-        expect(db.pragma("user_version", { simple: true })).toBe(3);
+        expect(db.pragma("user_version", { simple: true })).toBe(4);
         expect(() =>
           db
             .prepare("INSERT INTO files(path, language, hash, last_indexed_at, analysis_json) VALUES (?, ?, ?, ?, ?)")
@@ -109,7 +109,7 @@ describe("sqlite schema", () => {
           PRAGMA user_version = 2;
         `);
         ensureSchema(db);
-        expect(db.pragma("user_version", { simple: true })).toBe(3);
+        expect(db.pragma("user_version", { simple: true })).toBe(4);
         expect((db.prepare("SELECT COUNT(*) AS count FROM files").get() as { count: number }).count).toBe(1);
         expect(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='diagnostics'").get()).toBeTruthy();
       } finally {

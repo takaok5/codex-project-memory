@@ -25,12 +25,12 @@ describe("project indexer fixture", () => {
         ok: true,
         data: {
           files: { scanned: 8, indexed: 8, deleted: 0, failed: 0 },
-          records: { modules: 5, symbols: 20, symbolEdges: 7, routes: 2, warningsActive: 3 }
+          records: { modules: 5, symbols: 20, symbolEdges: 7, routes: 2, warningsActive: 0 }
         }
       });
       await expect(cmdIndex({ cwd: root, changedOnly: true })).resolves.toMatchObject({
         ok: true,
-        data: { files: { skippedUnchanged: 8 }, records: { symbolEdges: 7, warningsActive: 3 } }
+        data: { files: { skippedUnchanged: 8 }, records: { symbolEdges: 7, warningsActive: 0 } }
       });
 
       const db = openMemoryDb(getMemoryPaths(root));
@@ -49,7 +49,7 @@ describe("project indexer fixture", () => {
         expect(searchSymbols(db, {}).map((symbol) => symbol.fqName)).toContain("AccessService.canOpen");
         expect(listRoutes(db).map((route) => `${route.method} ${route.path}`)).toEqual(["GET /auth/me", "POST /access/open"]);
         expect(listEdgesForGraph(db)).toHaveLength(7);
-        expect(listActiveWarnings(db).map((warning) => warning.message).sort()).toEqual(["Unresolved import: @nestjs/common", "Unresolved import: @nestjs/common", "Unresolved import: vitest"]);
+        expect(listActiveWarnings(db).map((warning) => warning.message).sort()).toEqual([]);
       } finally {
         db.close();
       }

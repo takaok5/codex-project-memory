@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0 - 2026-06-16
+
+- Added SQLite schema v4 with a persistent evidence ledger, runtime evidence
+  runs/items, architecture decisions and evidence feedback.
+- Added explicit CLI commands for bounded runtime evidence import:
+  `pmem evidence run` and `pmem evidence list`.
+- Added invalidable decision records through `pmem decisions add/list/get/status`.
+- Added `pmem feedback` and deterministic retrieval weighting from prior
+  accepted/rejected/useful/not-useful signals.
+- Reduced warning noise for external imports and stale unresolved import
+  warnings after changed-only indexing.
+- Stopped persisting raw intent text in retrieval logs and feedback; stored
+  correlation values are hashed and output is sanitized.
+
 ## 0.5.0 - 2026-06-16
 
 - Added evidence-first `memory.agent` orchestration behind the existing MCP

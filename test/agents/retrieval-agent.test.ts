@@ -22,6 +22,7 @@ describe("retrieval agent", () => {
         const output = runRetrievalAgent(ctx, { intent: "access subscription suspended", maxFiles: 8, maxSymbols: 12, maxWarnings: 8, includeVisualFrame: true });
         expect(output.contextPack.budget).toMatchObject({ defaultDeny: true, maxItems: 12 });
         expect(output.contextPack.evidence.length).toBeGreaterThan(0);
+        expect(output.contextPack.decisions).toEqual(expect.any(Array));
         expect(output.contextPack.evidence.every((item) => item.source === item.source.replaceAll("\\", "/"))).toBe(true);
         expect(output.contextPack.modules.map((module) => module.id)).toContain("access");
         expect(output.contextPack.modules.map((module) => module.id)).toContain("subscriptions");
@@ -35,6 +36,7 @@ describe("retrieval agent", () => {
           summary: "No strong structural matches found.",
           budget: { usedItems: 0, defaultDeny: true },
           evidence: [],
+          decisions: [],
           constraints: []
         });
       } finally {

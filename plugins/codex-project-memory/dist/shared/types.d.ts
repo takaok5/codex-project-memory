@@ -10,6 +10,11 @@ export type LanguageKind = LanguageId;
 export type LanguageAnalysisTier = "deep" | "structural" | "fallback";
 export type LanguageToolStatus = "available" | "missing" | "installing" | "failed" | "disabled" | "unsupported";
 export type DiagnosticSeverity = "error" | "warning" | "info";
+export type RuntimeEvidenceKind = "build" | "test" | "lint" | "typecheck" | "command";
+export type RuntimeEvidenceStatus = "passed" | "failed" | "timeout" | "error";
+export type RuntimeEvidenceItemKind = "summary" | "diagnostic" | "test_result" | "build_result" | "lint_result" | "typecheck_result";
+export type EvidenceRecordStatus = "active" | "stale" | "contradicted";
+export type EvidenceFeedbackSignal = "useful" | "not_useful" | "accepted" | "rejected" | "opened";
 export interface LanguageCapability {
     language: LanguageId;
     displayName: string;
@@ -42,6 +47,102 @@ export interface DiagnosticRecord extends DiagnosticInput {
     fingerprint: string;
     createdAt: string;
 }
+export interface RuntimeEvidenceRunInput {
+    kind: RuntimeEvidenceKind;
+    command: string;
+    status: RuntimeEvidenceStatus;
+    exitCode: number | null;
+    durationMs: number;
+    outputSummary: string;
+    items: RuntimeEvidenceItemInput[];
+}
+export interface RuntimeEvidenceItemInput {
+    kind: RuntimeEvidenceItemKind;
+    filePath?: string | null;
+    severity: DiagnosticSeverity;
+    message: string;
+    startLine?: number | null;
+    endLine?: number | null;
+}
+export interface RuntimeEvidenceRunRecord {
+    id: number;
+    kind: RuntimeEvidenceKind;
+    command: string;
+    status: RuntimeEvidenceStatus;
+    exitCode: number | null;
+    durationMs: number;
+    outputSummary: string;
+    createdAt: string;
+}
+export interface RuntimeEvidenceItemRecord extends Required<RuntimeEvidenceItemInput> {
+    id: number;
+    runId: number;
+    fingerprint: string;
+    createdAt: string;
+}
+export interface RuntimeEvidenceOutput {
+    runs: RuntimeEvidenceRunRecord[];
+    items: RuntimeEvidenceItemRecord[];
+    summary: {
+        totalRuns: number;
+        passed: number;
+        failed: number;
+        timeout: number;
+        error: number;
+        totalItems: number;
+        truncated: boolean;
+    };
+}
+export interface EvidenceRecordInput {
+    kind: EvidenceKind | "runtime";
+    source: string;
+    summary: string;
+    filePath?: string | null;
+    symbolFqName?: string | null;
+    moduleId?: string | null;
+    runtimeRunId?: number | null;
+    architectureDecisionId?: number | null;
+    confidence: number;
+    score: number;
+    status?: EvidenceRecordStatus;
+    staleReason?: string | null;
+    metadata?: JsonObject;
+}
+export interface EvidenceRecord extends EvidenceRecordInput {
+    id: number;
+    status: EvidenceRecordStatus;
+    createdAt: string;
+    updatedAt: string;
+}
+export interface ArchitectureDecisionInput {
+    title: string;
+    summary: string;
+    rationale: string;
+    moduleId?: string | null;
+    filePath?: string | null;
+    symbolFqName?: string | null;
+    status?: EvidenceRecordStatus;
+}
+export interface ArchitectureDecisionRecord extends ArchitectureDecisionInput {
+    id: number;
+    status: EvidenceRecordStatus;
+    supersededById: number | null;
+    invalidatedByEvidenceId: number | null;
+    createdAt: string;
+    updatedAt: string;
+}
+export interface EvidenceFeedbackInput {
+    evidenceId?: number | null;
+    evidenceKey: string;
+    signal: EvidenceFeedbackSignal;
+    weight?: number;
+    intent: string;
+    source: string;
+}
+export interface EvidenceFeedbackRecord extends Required<EvidenceFeedbackInput> {
+    id: number;
+    createdAt: string;
+}
 export declare const ARTIFACT_KINDS: readonly ["service", "controller", "dto", "type", "interface", "enum", "repository", "utility", "route", "migration", "table", "job", "adapter", "module", "feature", "class", "function", "method", "const", "provider"];
 export type ArtifactKind = (typeof ARTIFACT_KINDS)[number];
 export type WarningSeverity = "info" | "warning" | "critical";
@@ -56,7 +157,7 @@ export type AgentRunStatus = "ready" | "initialized" | "refreshed" | "blocked" |
 export type AgentActionStatus = "completed" | "skipped" | "blocked";
 export type AgentDecisionVerdict = "continue" | "create_new_artifact" | "extend_existing_artifact" | "needs_human_review" | "blocked";
 export type AgentIntentKind = "implementation" | "debug" | "review" | "planning" | "pre_create" | "post_change" | "architecture" | "diagnostics" | "handoff";
-export type EvidenceKind = "file" | "symbol" | "module" | "route" | "test" | "diagnostic" | "warning" | "constraint" | "duplicate" | "diff";
+export type EvidenceKind = "file" | "symbol" | "module" | "route" | "test" | "diagnostic" | "warning" | "constraint" | "duplicate" | "diff" | "decision";
 export declare const PMEM_ERROR_CODES: readonly ["INVALID_INPUT", "VALIDATION_ERROR", "NOT_INITIALIZED", "ALREADY_EXISTS", "CONFIG_ERROR", "FS_ERROR", "DB_ERROR", "INDEX_ERROR", "RENDER_ERROR", "AGENT_ERROR", "MCP_ERROR", "SAFETY_ERROR", "STATE_ERROR", "FRAME_NOT_FOUND", "TEMPLATE_ERROR", "INTERNAL_ERROR"];
 export type PmemErrorCode = (typeof PMEM_ERROR_CODES)[number];
 export interface ErrorPayload {
@@ -249,7 +350,7 @@ export interface InitOutput {
     memoryRoot: ".codex/memory";
     config: ".codex/memory/project-memory.config.json";
     db: ".codex/memory/memory.db";
-    schemaVersion: 3;
+    schemaVersion: 4;
     created: string[];
     skipped: string[];
 }
@@ -481,6 +582,7 @@ export interface ContextPack {
     modules: ContextModule[];
     files: ContextFile[];
     symbols: ContextSymbol[];
+    decisions: ContextDecision[];
     constraints: string[];
     warnings: ContextWarning[];
     nextCommands: string[];
@@ -522,6 +624,15 @@ export interface ContextSymbol {
     fqName: string;
     kind: string;
     filePath: string;
+    reason: string;
+    score: number;
+}
+export interface ContextDecision {
+    id: number;
+    title: string;
+    status: EvidenceRecordStatus;
+    summary: string;
+    source: string;
     reason: string;
     score: number;
 }
@@ -636,7 +747,7 @@ export interface ImpactOutput {
 export interface MemoryCurationOutput {
     mode: "writer_gate";
     accepted: Array<{
-        kind: EvidenceKind | "decision";
+        kind: EvidenceKind;
         summary: string;
         source: string;
     }>;
@@ -650,6 +761,11 @@ export interface MemoryCurationOutput {
         reason: string;
     }>;
     rules: string[];
+}
+export interface EvidenceLedgerOutput {
+    acceptedEvidenceIds: number[];
+    architectureDecisionIds: number[];
+    feedbackIds: number[];
 }
 export interface ConflictOutput {
     status: "clear" | "conflict";
@@ -695,6 +811,8 @@ export interface AgentRunOutput {
     impact?: ImpactOutput;
     curation?: MemoryCurationOutput;
     conflicts?: ConflictOutput;
+    ledger?: EvidenceLedgerOutput;
+    runtimeEvidence?: RuntimeEvidenceOutput;
     refresh?: RefreshOutput;
     frame?: FrameOutput;
     diff?: DiffOutput;
@@ -727,6 +845,7 @@ export interface RetrievalAgentInput {
     maxWarnings: number;
     maxEvidenceItems?: number;
     minScore?: number;
+    diff?: DiffOutput;
     includeVisualFrame: boolean;
 }
 export interface DuplicateAgentInput {
@@ -856,7 +975,7 @@ export interface FrameOutput extends CliFramePath {
 export interface MemorySnapshot {
     version: 1;
     createdAt: string;
-    schemaVersion: "1" | "2" | "3" | null;
+    schemaVersion: "1" | "2" | "3" | "4" | null;
     configHash: string | null;
     languageCapabilities: JsonObject[];
     diagnostics: Array<{

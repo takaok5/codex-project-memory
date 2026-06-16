@@ -1,8 +1,9 @@
 import { getFrame } from "../store/frame-repository.js";
 import { getProjectState } from "../store/project-state-repository.js";
 import { addRetrievalLog } from "../store/retrieval-log-repository.js";
+import { getEvidenceFeedbackScores, listArchitectureDecisions, listRuntimeEvidenceItems } from "../store/evidence-repository.js";
 import { tokenizeForSearch } from "./tokenize.js";
-import type { ContextBudget, ContextFile, ContextModule, ContextSymbol, ContextWarning, EvidenceItem, JsonObject, RetrievalAgentInput, QueryOutput, RuntimeContext, WarningSeverity } from "../shared/types.js";
+import type { ContextBudget, ContextDecision, ContextFile, ContextModule, ContextSymbol, ContextWarning, EvidenceItem, JsonObject, RetrievalAgentInput, QueryOutput, RuntimeContext, WarningSeverity } from "../shared/types.js";
 import type { MemoryDb } from "../store/sqlite.js";
 
 export function runRetrievalAgent(ctx: RuntimeContext, input: RetrievalAgentInput): QueryOutput {
@@ -10,16 +11,18 @@ export function runRetrievalAgent(ctx: RuntimeContext, input: RetrievalAgentInpu
   const tokens = tokenizeForSearch(input.intent);
   const minScore = clampInt(input.minScore ?? 30, 0, 300);
   const maxEvidenceItems = clampInt(input.maxEvidenceItems ?? 12, 1, 40);
-  const modules = scoreModules(db, tokens).filter((item) => item.score >= minScore).slice(0, input.maxFiles);
-  const files = scoreFiles(db, tokens).filter((item) => item.score >= minScore).slice(0, input.maxFiles);
-  const symbols = scoreSymbols(db, tokens).filter((item) => item.score >= minScore).slice(0, input.maxSymbols);
-  const warnings = [...scoreWarnings(db, tokens), ...scoreDiagnostics(db, tokens)]
+  const feedback = getEvidenceFeedbackScores(db);
+  const modules = scoreModules(db, tokens).map((item) => applyFeedback(item, `module:${item.id}`, feedback)).filter((item) => item.score >= minScore).slice(0, input.maxFiles);
+  const files = scoreFiles(db, tokens, input.diff).map((item) => applyFeedback(item, `file:${item.path}`, feedback)).filter((item) => item.score >= minScore).slice(0, input.maxFiles);
+  const symbols = scoreSymbols(db, tokens, input.diff).map((item) => applyFeedback(item, `symbol:${item.filePath}:${item.fqName}`, feedback)).filter((item) => item.score >= minScore).slice(0, input.maxSymbols);
+  const decisions = scoreDecisions(db, tokens, feedback).filter((item) => item.score >= minScore).slice(0, 6);
+  const warnings = [...scoreWarnings(db, tokens), ...scoreDiagnostics(db, tokens), ...scoreRuntimeEvidence(db, tokens)]
     .sort((a, b) => severityRank(a.severity) - severityRank(b.severity) || (a.filePath ?? "").localeCompare(b.filePath ?? "") || a.message.localeCompare(b.message))
     .slice(0, input.maxWarnings);
   const current = input.includeVisualFrame ? getFrame(db, "current") : null;
   const state = getProjectState(db);
   const constraints = selectConstraints(ctx.config.criticalRules, modules, files, symbols, maxEvidenceItems);
-  const rawEvidence = buildEvidenceItems({ modules, files, symbols, warnings, constraints });
+  const rawEvidence = buildEvidenceItems({ modules, files, symbols, decisions, warnings, constraints });
   const evidence = rawEvidence.slice(0, maxEvidenceItems);
   const budget = buildBudget(maxEvidenceItems, rawEvidence.length, evidence);
   const contextPack = {
@@ -29,6 +32,7 @@ export function runRetrievalAgent(ctx: RuntimeContext, input: RetrievalAgentInpu
     modules,
     files,
     symbols,
+    decisions,
     constraints,
     warnings,
     nextCommands: [`pmem duplicates --kind service ${input.intent} --json`],
@@ -58,20 +62,21 @@ function scoreModules(db: MemoryDb, tokens: string[]): ContextModule[] {
     .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
 }
 
-function scoreFiles(db: MemoryDb, tokens: string[]): ContextFile[] {
+function scoreFiles(db: MemoryDb, tokens: string[], diff = emptyDiffInput()): ContextFile[] {
   return (
     db.prepare("SELECT path, module_id, is_test, is_generated FROM files ORDER BY path ASC").all() as Array<{ path: string; module_id: string | null; is_test: number; is_generated: number }>
   )
     .map((row) => {
       const base = scoreText(tokens, `${row.path} ${row.module_id ?? ""}`);
-      const score = Math.max(0, base - (row.is_generated ? 30 : 0) - (row.is_test ? 10 : 0));
+      const diffBonus = diff.changedFiles.includes(row.path) || diff.addedFiles.includes(row.path) ? 35 : 0;
+      const score = Math.max(0, base + (base > 0 ? diffBonus : 0) - (row.is_generated ? 30 : 0) - (row.is_test ? 10 : 0));
       return { path: row.path, moduleId: row.module_id ?? undefined, reason: "path/module token match", score, isTest: row.is_test === 1 };
     })
     .filter((row) => row.score > 0)
     .sort((a, b) => b.score - a.score || Number(a.isTest) - Number(b.isTest) || a.path.localeCompare(b.path));
 }
 
-function scoreSymbols(db: MemoryDb, tokens: string[]): ContextSymbol[] {
+function scoreSymbols(db: MemoryDb, tokens: string[], diff = emptyDiffInput()): ContextSymbol[] {
   return (
     db
       .prepare(
@@ -81,9 +86,34 @@ function scoreSymbols(db: MemoryDb, tokens: string[]): ContextSymbol[] {
       )
       .all() as Array<{ id: number; fq_name: string; name: string; kind: string; file_path: string }>
   )
-    .map((row) => ({ fqName: row.fq_name, kind: row.kind, filePath: row.file_path, reason: "symbol token match", score: scoreText(tokens, `${row.fq_name} ${row.name} ${row.kind}`) }))
+    .map((row) => {
+      const base = scoreText(tokens, `${row.fq_name} ${row.name} ${row.kind}`);
+      const diffBonus = diff.changedFiles.includes(row.file_path) || diff.addedFiles.includes(row.file_path) ? 25 : 0;
+      const kindBonus = hasTokenMatch(new Set(tokens), row.kind) ? 25 : 0;
+      return { fqName: row.fq_name, kind: row.kind, filePath: row.file_path, reason: "symbol token match", score: base + (base > 0 ? diffBonus + kindBonus : 0) };
+    })
     .filter((row) => row.score > 0)
     .sort((a, b) => b.score - a.score || a.filePath.localeCompare(b.filePath) || a.fqName.localeCompare(b.fqName));
+}
+
+function scoreDecisions(db: MemoryDb, tokens: string[], feedback: Map<string, number>): ContextDecision[] {
+  return listArchitectureDecisions(db, { limit: 30 })
+    .map((decision) => {
+      const base = scoreText(tokens, `${decision.title} ${decision.summary} ${decision.rationale} ${decision.moduleId ?? ""} ${decision.filePath ?? ""} ${decision.symbolFqName ?? ""}`);
+      const stalePenalty = decision.status === "active" ? 0 : -30;
+      const score = Math.max(0, base + stalePenalty + feedbackDelta(feedback, `decision:${decision.id}`, `decision:${decision.title}`));
+      return {
+        id: decision.id,
+        title: decision.title,
+        status: decision.status,
+        summary: decision.summary,
+        source: decision.filePath ?? decision.moduleId ?? "architecture_decision",
+        reason: decision.status === "active" ? "architecture decision token match" : `architecture decision is ${decision.status}`,
+        score
+      };
+    })
+    .filter((row) => row.score > 0)
+    .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
 }
 
 function scoreWarnings(db: MemoryDb, tokens: string[]): ContextWarning[] {
@@ -120,6 +150,17 @@ function scoreDiagnostics(db: MemoryDb, tokens: string[]): ContextWarning[] {
     }));
 }
 
+function scoreRuntimeEvidence(db: MemoryDb, tokens: string[]): ContextWarning[] {
+  return listRuntimeEvidenceItems(db, { limit: 50 })
+    .filter((row) => scoreText(tokens, `${row.message} ${row.filePath ?? ""} ${row.kind}`) > 0)
+    .map((row) => ({
+      severity: row.severity === "error" ? "critical" : row.severity === "warning" ? "warning" : "info",
+      message: `runtime ${row.kind}: ${row.message}`,
+      filePath: row.filePath ?? undefined,
+      recommendation: "Use runtime evidence before changing this area."
+    }));
+}
+
 function severityRank(severity: WarningSeverity): number {
   if (severity === "critical") return 0;
   if (severity === "warning") return 1;
@@ -150,7 +191,7 @@ function selectConstraints(rules: string[], modules: ContextModule[], files: Con
   return rules.slice(0, Math.min(5, Math.max(1, Math.floor(maxEvidenceItems / 3))));
 }
 
-function buildEvidenceItems(input: { modules: ContextModule[]; files: ContextFile[]; symbols: ContextSymbol[]; warnings: ContextWarning[]; constraints: string[] }): EvidenceItem[] {
+function buildEvidenceItems(input: { modules: ContextModule[]; files: ContextFile[]; symbols: ContextSymbol[]; decisions: ContextDecision[]; warnings: ContextWarning[]; constraints: string[] }): EvidenceItem[] {
   const evidence: EvidenceItem[] = [];
   for (const module of input.modules) {
     evidence.push({
@@ -188,6 +229,18 @@ function buildEvidenceItems(input: { modules: ContextModule[]; files: ContextFil
       stale: false
     });
   }
+  for (const decision of input.decisions) {
+    evidence.push({
+      id: `decision:${decision.id}`,
+      kind: "decision",
+      summary: decision.summary,
+      source: decision.source,
+      confidence: decision.status === "active" ? 0.9 : 0.55,
+      reason: decision.reason,
+      score: decision.score,
+      stale: decision.status !== "active"
+    });
+  }
   for (const warning of input.warnings) {
     const severityBoost = warning.severity === "critical" ? 100 : warning.severity === "warning" ? 75 : 45;
     evidence.push({
@@ -214,6 +267,19 @@ function buildEvidenceItems(input: { modules: ContextModule[]; files: ContextFil
     });
   });
   return evidence.sort((a, b) => b.score - a.score || a.kind.localeCompare(b.kind) || a.source.localeCompare(b.source) || a.id.localeCompare(b.id));
+}
+
+function applyFeedback<T extends { score: number }>(item: T, key: string, feedback: Map<string, number>): T {
+  return { ...item, score: Math.max(0, item.score + feedbackDelta(feedback, key)) };
+}
+
+function feedbackDelta(feedback: Map<string, number>, ...keys: string[]): number {
+  const raw = keys.reduce((sum, key) => sum + (feedback.get(key) ?? 0), 0);
+  return Math.max(-45, Math.min(45, raw * 12));
+}
+
+function emptyDiffInput(): NonNullable<RetrievalAgentInput["diff"]> {
+  return { from: "previous", to: "current", changedFiles: [], addedFiles: [], removedFiles: [], changedModules: [], addedSymbols: [], removedSymbols: [], changedWarnings: { added: [], resolved: [] } };
 }
 
 function buildBudget(maxItems: number, rawCount: number, evidence: EvidenceItem[]): ContextBudget {

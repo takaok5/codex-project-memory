@@ -46,6 +46,21 @@ describe("public output path audit", () => {
         outputs.push(db.prepare("SELECT owns_json, must_not_json, dependencies_json FROM modules").all());
         const logs = db.prepare("SELECT output_json FROM retrieval_logs").all() as Array<{ output_json: string }>;
         outputs.push(logs.map((log) => JSON.parse(log.output_json)));
+        outputs.push(db.prepare("SELECT command, output_summary FROM runtime_evidence_runs").all());
+        outputs.push(db.prepare("SELECT file_path, message FROM runtime_evidence_items").all());
+        const evidenceRecords = db
+          .prepare("SELECT source, summary, file_path, metadata_json FROM evidence_records")
+          .all() as Array<{ source: string; summary: string; file_path: string | null; metadata_json: string }>;
+        outputs.push(
+          evidenceRecords.map((record) => ({
+            source: record.source,
+            summary: record.summary,
+            file_path: record.file_path,
+            metadata: JSON.parse(record.metadata_json)
+          }))
+        );
+        outputs.push(db.prepare("SELECT title, summary, rationale, file_path FROM architecture_decisions").all());
+        outputs.push(db.prepare("SELECT evidence_key, intent, source FROM evidence_feedback").all());
       } finally {
         db.close();
       }

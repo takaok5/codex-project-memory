@@ -71,6 +71,86 @@ CREATE TABLE IF NOT EXISTS diagnostics (
   CHECK (end_line IS NULL OR start_line IS NULL OR end_line >= start_line)
 );
 
+CREATE TABLE IF NOT EXISTS runtime_evidence_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL CHECK (kind IN ('build', 'test', 'lint', 'typecheck', 'command')),
+  command TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('passed', 'failed', 'timeout', 'error')),
+  exit_code INTEGER,
+  duration_ms INTEGER NOT NULL DEFAULT 0 CHECK (duration_ms >= 0),
+  output_summary TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS runtime_evidence_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id INTEGER NOT NULL REFERENCES runtime_evidence_runs(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('summary', 'diagnostic', 'test_result', 'build_result', 'lint_result', 'typecheck_result')),
+  file_path TEXT,
+  severity TEXT NOT NULL CHECK (severity IN ('info', 'warning', 'error')),
+  message TEXT NOT NULL,
+  start_line INTEGER CHECK (start_line IS NULL OR start_line >= 1),
+  end_line INTEGER CHECK (end_line IS NULL OR end_line >= 1),
+  fingerprint TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  CHECK (file_path IS NULL OR file_path NOT LIKE '/%'),
+  CHECK (file_path IS NULL OR file_path NOT LIKE '%\%'),
+  CHECK (end_line IS NULL OR start_line IS NULL OR end_line >= start_line)
+);
+
+CREATE TABLE IF NOT EXISTS evidence_records (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL CHECK (kind IN ('file', 'symbol', 'module', 'route', 'test', 'diagnostic', 'warning', 'constraint', 'duplicate', 'diff', 'decision', 'runtime')),
+  source TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  file_path TEXT,
+  symbol_fq_name TEXT,
+  module_id TEXT REFERENCES modules(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  runtime_run_id INTEGER REFERENCES runtime_evidence_runs(id) ON DELETE SET NULL,
+  architecture_decision_id INTEGER REFERENCES architecture_decisions(id) ON DELETE SET NULL,
+  confidence REAL NOT NULL DEFAULT 1.0 CHECK (confidence >= 0.0 AND confidence <= 1.0),
+  score REAL NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'stale', 'contradicted')),
+  stale_reason TEXT,
+  metadata_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK (source NOT LIKE '/%'),
+  CHECK (source NOT LIKE '%\%'),
+  CHECK (file_path IS NULL OR file_path NOT LIKE '/%'),
+  CHECK (file_path IS NULL OR file_path NOT LIKE '%\%')
+);
+
+CREATE TABLE IF NOT EXISTS architecture_decisions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL UNIQUE,
+  summary TEXT NOT NULL,
+  rationale TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'stale', 'contradicted')),
+  module_id TEXT REFERENCES modules(id) ON UPDATE CASCADE ON DELETE SET NULL,
+  file_path TEXT,
+  symbol_fq_name TEXT,
+  superseded_by_id INTEGER REFERENCES architecture_decisions(id) ON DELETE SET NULL,
+  invalidated_by_evidence_id INTEGER REFERENCES evidence_records(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK (file_path IS NULL OR file_path NOT LIKE '/%'),
+  CHECK (file_path IS NULL OR file_path NOT LIKE '%\%')
+);
+
+CREATE TABLE IF NOT EXISTS evidence_feedback (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  evidence_id INTEGER REFERENCES evidence_records(id) ON DELETE CASCADE,
+  evidence_key TEXT NOT NULL,
+  signal TEXT NOT NULL CHECK (signal IN ('useful', 'not_useful', 'accepted', 'rejected', 'opened')),
+  weight REAL NOT NULL DEFAULT 1.0 CHECK (weight >= -10.0 AND weight <= 10.0),
+  intent TEXT NOT NULL,
+  source TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  CHECK (source NOT LIKE '/%'),
+  CHECK (source NOT LIKE '%\%')
+);
+
 CREATE TABLE IF NOT EXISTS symbols (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
@@ -180,6 +260,17 @@ CREATE INDEX IF NOT EXISTS idx_diagnostics_file_id ON diagnostics(file_id);
 CREATE INDEX IF NOT EXISTS idx_diagnostics_language ON diagnostics(language);
 CREATE INDEX IF NOT EXISTS idx_diagnostics_severity ON diagnostics(severity);
 CREATE INDEX IF NOT EXISTS idx_diagnostics_tool ON diagnostics(tool);
+CREATE INDEX IF NOT EXISTS idx_runtime_evidence_runs_kind ON runtime_evidence_runs(kind, created_at);
+CREATE INDEX IF NOT EXISTS idx_runtime_evidence_items_run_id ON runtime_evidence_items(run_id);
+CREATE INDEX IF NOT EXISTS idx_runtime_evidence_items_file_path ON runtime_evidence_items(file_path);
+CREATE INDEX IF NOT EXISTS idx_evidence_records_kind_status ON evidence_records(kind, status);
+CREATE INDEX IF NOT EXISTS idx_evidence_records_file_path ON evidence_records(file_path);
+CREATE INDEX IF NOT EXISTS idx_evidence_records_module_id ON evidence_records(module_id);
+CREATE INDEX IF NOT EXISTS idx_evidence_records_runtime_run_id ON evidence_records(runtime_run_id);
+CREATE INDEX IF NOT EXISTS idx_architecture_decisions_status ON architecture_decisions(status);
+CREATE INDEX IF NOT EXISTS idx_architecture_decisions_module_id ON architecture_decisions(module_id);
+CREATE INDEX IF NOT EXISTS idx_evidence_feedback_key ON evidence_feedback(evidence_key);
+CREATE INDEX IF NOT EXISTS idx_evidence_feedback_evidence_id ON evidence_feedback(evidence_id);
 CREATE INDEX IF NOT EXISTS idx_symbols_file_id ON symbols(file_id);
 CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
 CREATE INDEX IF NOT EXISTS idx_symbols_fq_name ON symbols(fq_name);

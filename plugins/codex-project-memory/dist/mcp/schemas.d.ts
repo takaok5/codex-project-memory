@@ -58,6 +58,8 @@ export declare function getMemoryToolSchemas(): {
             artifact: z.ZodOptional<z.ZodObject<{
                 kind: z.ZodEnum<{
                     function: "function";
+                    module: "module";
+                    route: "route";
                     service: "service";
                     controller: "controller";
                     dto: "dto";
@@ -66,12 +68,10 @@ export declare function getMemoryToolSchemas(): {
                     enum: "enum";
                     repository: "repository";
                     utility: "utility";
-                    route: "route";
                     migration: "migration";
                     table: "table";
                     job: "job";
                     adapter: "adapter";
-                    module: "module";
                     feature: "feature";
                     class: "class";
                     method: "method";

@@ -18,6 +18,7 @@ describe("project memory agent", () => {
         impact: { blastRadius: expect.any(String) },
         curation: { mode: "writer_gate" },
         conflicts: { status: "clear" },
+        ledger: { acceptedEvidenceIds: expect.any(Array), feedbackIds: expect.any(Array) },
         decision: { verdict: "continue" }
       });
       expect(output.actions).toEqual(expect.arrayContaining([
@@ -87,6 +88,7 @@ describe("project memory agent", () => {
 
       expect(output.refresh).toBeDefined();
       expect(output.diff).toBeDefined();
+      expect(output.runtimeEvidence).toBeDefined();
       expect(output.actions).toEqual(expect.arrayContaining([
         expect.objectContaining({ name: "refresh", status: "completed" }),
         expect.objectContaining({ name: "diff", status: "completed" }),

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { writeJson } from "../shared/json.js";
 import { nowIso } from "../shared/time.js";
 import type { AgentName, JsonValue } from "../shared/types.js";
@@ -10,7 +11,7 @@ export interface RetrievalLogInput {
 }
 
 export function insertRetrievalLog(db: MemoryDb, log: RetrievalLogInput): number {
-  const result = db.prepare("INSERT INTO retrieval_logs(intent, agent, output_json, created_at) VALUES (?, ?, ?, ?)").run(log.intent, log.agent, writeJson(log.output), nowIso());
+  const result = db.prepare("INSERT INTO retrieval_logs(intent, agent, output_json, created_at) VALUES (?, ?, ?, ?)").run(intentHash(log.intent), log.agent, writeJson(sanitizeLoggedOutput(log.output)), nowIso());
   return Number(result.lastInsertRowid);
 }
 
@@ -30,4 +31,26 @@ interface RetrievalLogRow {
   agent: AgentName;
   output_json: string;
   created_at: string;
+}
+
+function intentHash(intent: string): string {
+  return `sha256:${createHash("sha256").update(intent.trim()).digest("hex")}`;
+}
+
+function sanitizeLoggedOutput(value: JsonValue): JsonValue {
+  if (Array.isArray(value)) return value.map((item) => sanitizeLoggedOutput(item));
+  if (!value || typeof value !== "object") return value;
+  const output: Record<string, JsonValue> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (key === "intent") {
+      output.intentHash = typeof item === "string" ? intentHash(item) : "sha256:unknown";
+      continue;
+    }
+    if (key === "nextCommands") {
+      output.nextCommands = [];
+      continue;
+    }
+    output[key] = sanitizeLoggedOutput(item);
+  }
+  return output;
 }

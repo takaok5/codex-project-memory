@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { indexProject } from "../indexer/project-indexer.js";
 import { renderCurrentFrame } from "../renderer/render-current.js";
@@ -6,12 +7,14 @@ import { findProjectRoot } from "../runtime/project-locator.js";
 import { computeConfigHash, writeDefaultProjectConfig } from "../runtime/config-loader.js";
 import { ensureMemoryDirectories, getMemoryPaths } from "../runtime/memory-paths.js";
 import { resolveRuntimeContext } from "../runtime/context.js";
+import { listRuntimeEvidence } from "../runtime/runtime-evidence.js";
 import { createMemorySnapshot, diffMemorySnapshots, readMemorySnapshot, rotateSnapshotsForWrite } from "../runtime/snapshots.js";
 import { PmemError } from "../shared/errors.js";
 import { ARTIFACT_KINDS } from "../shared/types.js";
 import { getFrame } from "../store/frame-repository.js";
 import { getProjectState, setProjectStateValue } from "../store/project-state-repository.js";
 import { ensureSchema, openMemoryDb } from "../store/sqlite.js";
+import { addEvidenceFeedback, addEvidenceRecord, addEvidenceRecords, markEvidenceStaleForRemovedFiles, upsertArchitectureDecision } from "../store/evidence-repository.js";
 import { runConflictArbiter } from "./conflict-arbiter.js";
 import { runDuplicateAgent } from "./duplicate-agent.js";
 import { runImpactAgent } from "./impact-agent.js";
@@ -32,6 +35,7 @@ import type {
   ConflictOutput,
   DiffOutput,
   DuplicateOutput,
+  EvidenceLedgerOutput,
   FrameName,
   FrameOutput,
   HeadOutput,
@@ -39,7 +43,8 @@ import type {
   MemoryCurationOutput,
   QueryOutput,
   RefreshOutput,
-  RuntimeContext
+  RuntimeContext,
+  RuntimeEvidenceOutput
 } from "../shared/types.js";
 import type { MemoryDb } from "../store/sqlite.js";
 
@@ -99,9 +104,18 @@ export async function runProjectAgent(input: AgentRunInput, options: ProjectAgen
     actions.push({ name: "refresh", status: "skipped", reason: normalized.allowRefresh ? "memory is already fresh" : "allowRefresh=false" });
   }
 
+  let diff: DiffOutput | undefined;
+  if (normalized.phase === "review" || normalized.phase === "post_change") {
+    diff = diffMemory(options.cwd);
+    warnings.push(...diffWarnings(diff));
+    actions.push({ name: "diff", status: "completed", reason: "compared previous and current memory snapshots" });
+  } else {
+    actions.push({ name: "diff", status: "skipped", reason: `phase=${normalized.phase}` });
+  }
+
   let query: QueryOutput | undefined;
   if (shouldQuery(normalized.phase)) {
-    query = queryMemory(options.cwd, normalized.intent, normalized.phase === "orient", route);
+    query = queryMemory(options.cwd, normalized.intent, normalized.phase === "orient", route, diff);
     actions.push({ name: "query", status: "completed", reason: "retrieved project context" });
   } else {
     actions.push({ name: "query", status: "skipped", reason: `phase=${normalized.phase}` });
@@ -123,17 +137,13 @@ export async function runProjectAgent(input: AgentRunInput, options: ProjectAgen
     actions.push({ name: "frame", status: "skipped", reason: `phase=${normalized.phase}` });
   }
 
-  let diff: DiffOutput | undefined;
-  if (normalized.phase === "review" || normalized.phase === "post_change") {
-    diff = diffMemory(options.cwd);
-    warnings.push(...diffWarnings(diff));
-    actions.push({ name: "diff", status: "completed", reason: "compared previous and current memory snapshots" });
-  } else {
-    actions.push({ name: "diff", status: "skipped", reason: `phase=${normalized.phase}` });
-  }
-
   if (route.agents.includes("runtime-evidence-importer")) {
     actions.push({ name: "runtime-evidence", status: diff ? "completed" : "skipped", reason: diff ? "imported diff and diagnostics evidence" : "no runtime evidence for this phase" });
+  }
+
+  let runtimeEvidence: RuntimeEvidenceOutput | undefined;
+  if (route.agents.includes("runtime-evidence-importer")) {
+    runtimeEvidence = readRuntimeEvidence(options.cwd);
   }
 
   let impact: ImpactOutput | undefined;
@@ -163,8 +173,21 @@ export async function runProjectAgent(input: AgentRunInput, options: ProjectAgen
   actions.push({ name: "compressor", status: "completed", reason: query ? `evidence budget ${query.contextPack.budget.usedItems}/${query.contextPack.budget.maxItems}` : `route budget ${route.budget.maxEvidenceItems}` });
 
   const decision = decide({ query, duplicates, conflicts, initialized, refreshed });
+  const status = statusFromDecision(decision.verdict, initialized, refreshed);
+  const ledger = persistAgentLedger(options.cwd, {
+    intent: normalized.intent,
+    phase: normalized.phase,
+    status,
+    route,
+    query,
+    duplicates,
+    impact,
+    curation,
+    diff,
+    decision
+  });
   return buildOutput({
-    status: statusFromDecision(decision.verdict, initialized, refreshed),
+    status,
     actions,
     head,
     route,
@@ -173,12 +196,125 @@ export async function runProjectAgent(input: AgentRunInput, options: ProjectAgen
     impact,
     curation,
     conflicts,
+    ledger,
+    runtimeEvidence,
     refresh,
     frame,
     diff,
     decision,
     warnings
   });
+}
+
+function readRuntimeEvidence(cwd: string): RuntimeEvidenceOutput {
+  const ctx = resolveRuntimeContext({ cwd, openDb: true });
+  const db = ctx.db as MemoryDb;
+  try {
+    return listRuntimeEvidence(ctx);
+  } finally {
+    db.close();
+  }
+}
+
+function persistAgentLedger(cwd: string, input: {
+  intent: string;
+  phase: AgentRunPhase;
+  status: AgentRunStatus;
+  route: AgentRouteOutput;
+  query?: QueryOutput;
+  duplicates?: DuplicateOutput;
+  impact?: ImpactOutput;
+  curation?: MemoryCurationOutput;
+  diff?: DiffOutput;
+  decision: AgentDecision;
+}): EvidenceLedgerOutput {
+  const ctx = resolveRuntimeContext({ cwd, openDb: true });
+  const db = ctx.db as MemoryDb;
+  try {
+    const acceptedEvidenceIds: number[] = [];
+    const architectureDecisionIds: number[] = [];
+    const feedbackIds: number[] = [];
+    const observed = input.query?.contextPack.evidence.map((item) => ({
+      kind: item.kind,
+      source: item.source,
+      summary: item.summary,
+      filePath: item.source.includes("/") ? item.source : null,
+      confidence: item.confidence,
+      score: item.score,
+      status: item.stale ? "stale" as const : "active" as const,
+      staleReason: item.stale ? item.reason : null,
+      metadata: { evidenceId: item.id, reason: item.reason, phase: input.phase, route: input.route.intentKind }
+    })) ?? [];
+    acceptedEvidenceIds.push(...addEvidenceRecords(db, observed));
+
+    for (const accepted of input.curation?.accepted ?? []) {
+      const id = addEvidenceRecord(db, {
+        kind: accepted.kind,
+        source: accepted.source,
+        summary: accepted.summary,
+        filePath: accepted.source.includes("/") ? accepted.source : null,
+        confidence: 0.9,
+        score: accepted.kind === "decision" ? 90 : 75,
+        metadata: { phase: input.phase, accepted: true }
+      });
+      acceptedEvidenceIds.push(id);
+      feedbackIds.push(addEvidenceFeedback(db, { evidenceId: id, evidenceKey: `${accepted.kind}:${accepted.source}`, signal: "accepted", intent: input.intent, source: "implicit_agent" }));
+    }
+
+    for (const rejected of input.curation?.rejected ?? []) {
+      const key = `rejected:${rejected.source}`;
+      feedbackIds.push(addEvidenceFeedback(db, { evidenceKey: key, signal: "rejected", intent: input.intent, source: "implicit_agent" }));
+    }
+
+    if (input.duplicates && input.duplicates.risk !== "low") {
+      acceptedEvidenceIds.push(addEvidenceRecord(db, {
+        kind: "duplicate",
+        source: "duplicate-sentinel",
+        summary: input.duplicates.recommendation,
+        confidence: input.duplicates.risk === "high" ? 0.95 : 0.75,
+        score: input.duplicates.risk === "high" ? 100 : 70,
+        metadata: { risk: input.duplicates.risk, verdict: input.duplicates.verdict }
+      }));
+    }
+
+    if (input.impact && input.impact.blastRadius !== "none") {
+      acceptedEvidenceIds.push(addEvidenceRecord(db, {
+        kind: "decision",
+        source: "impact-assessor",
+        summary: input.impact.summary,
+        confidence: 0.85,
+        score: input.impact.blastRadius === "high" ? 90 : input.impact.blastRadius === "medium" ? 70 : 50,
+        metadata: { blastRadius: input.impact.blastRadius, phase: input.phase }
+      }));
+    }
+
+    if (input.route.intentKind === "architecture" || input.route.intentKind === "planning") {
+      architectureDecisionIds.push(upsertArchitectureDecision(db, {
+        title: `agent:${input.route.intentKind}:${shortHash(input.intent)}`,
+        summary: input.decision.message,
+        rationale: `Recorded from ${input.phase} agent run with verdict ${input.decision.verdict}.`,
+        moduleId: input.route.scope.modules[0] ?? null,
+        filePath: input.decision.filesToOpen[0] ?? null,
+        status: input.decision.verdict === "blocked" ? "stale" : "active"
+      }));
+    }
+
+    if (input.diff?.removedFiles.length) {
+      markEvidenceStaleForRemovedFiles(db, input.diff.removedFiles, "removed in memory diff");
+    }
+
+    return {
+      acceptedEvidenceIds: [...new Set(acceptedEvidenceIds)].slice(0, 50),
+      architectureDecisionIds: [...new Set(architectureDecisionIds)].slice(0, 20),
+      feedbackIds: [...new Set(feedbackIds)].slice(0, 50)
+    };
+  } finally {
+    db.close();
+  }
+}
+
+function shortHash(value: string): string {
+  return createHash("sha256").update(value.trim()).digest("hex").slice(0, 16);
 }
 
 function normalizeAgentInput(input: AgentRunInput): Required<Pick<AgentRunInput, "intent" | "phase" | "allowInit" | "allowRefresh" | "render">> & { artifact?: AgentArtifactInput } {
@@ -326,7 +462,7 @@ async function refreshMemory(cwd: string, render: boolean, phase: AgentRunPhase)
   }
 }
 
-function queryMemory(cwd: string, intent: string, visual: boolean, route: AgentRouteOutput): QueryOutput {
+function queryMemory(cwd: string, intent: string, visual: boolean, route: AgentRouteOutput, diff?: DiffOutput): QueryOutput {
   const ctx = resolveRuntimeContext({ cwd, openDb: true });
   const db = ctx.db as MemoryDb;
   try {
@@ -337,6 +473,7 @@ function queryMemory(cwd: string, intent: string, visual: boolean, route: AgentR
       maxWarnings: clampInt(Math.min(ctx.config.agents.maxWarnings ?? 8, route.budget.maxWarnings), 0, 20),
       maxEvidenceItems: route.budget.maxEvidenceItems,
       minScore: Math.round(route.minConfidence * 40),
+      diff,
       includeVisualFrame: visual
     });
   } finally {
@@ -500,6 +637,8 @@ function buildOutput(input: {
   impact?: ImpactOutput;
   curation?: MemoryCurationOutput;
   conflicts?: ConflictOutput;
+  ledger?: EvidenceLedgerOutput;
+  runtimeEvidence?: RuntimeEvidenceOutput;
   refresh?: RefreshOutput;
   frame?: FrameOutput;
   diff?: DiffOutput;
@@ -517,6 +656,8 @@ function buildOutput(input: {
     ...(input.impact ? { impact: input.impact } : {}),
     ...(input.curation ? { curation: input.curation } : {}),
     ...(input.conflicts ? { conflicts: input.conflicts } : {}),
+    ...(input.ledger ? { ledger: input.ledger } : {}),
+    ...(input.runtimeEvidence ? { runtimeEvidence: input.runtimeEvidence } : {}),
     ...(input.refresh ? { refresh: input.refresh } : {}),
     ...(input.frame ? { frame: input.frame } : {}),
     ...(input.diff ? { diff: input.diff } : {}),

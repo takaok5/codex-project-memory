@@ -6,7 +6,10 @@ import { cmdAgentsInstall, cmdAgentsList } from "./commands/agents.js";
 import { cmdDoctor } from "./commands/doctor.js";
 import { cmdDiagnostics } from "./commands/diagnostics.js";
 import { cmdDiff } from "./commands/diff.js";
+import { cmdDecisionAdd, cmdDecisionGet, cmdDecisionList, cmdDecisionStatus } from "./commands/decisions.js";
 import { cmdDuplicates } from "./commands/duplicates.js";
+import { cmdEvidenceList, cmdEvidenceRun } from "./commands/evidence.js";
+import { cmdFeedback } from "./commands/feedback.js";
 import { cmdFrame } from "./commands/frame.js";
 import { cmdHead } from "./commands/head.js";
 import { cmdIndex } from "./commands/index.js";
@@ -118,6 +121,79 @@ export async function runCli(argv: string[], cwd = process.cwd()): Promise<numbe
     .option("--json", "emit compact JSON")
     .action(async (options: { from?: string; to?: string; json?: boolean }) => {
       const result = await cmdDiff({ cwd, from: options.from, to: options.to });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+
+  const evidence = program.command("evidence").description("run or list bounded runtime evidence");
+  evidence
+    .command("run")
+    .description("run a project build/test/lint/typecheck script and import bounded evidence")
+    .option("--kind <kind>", "build|test|lint|typecheck", "test")
+    .option("--all", "run all discovered evidence scripts")
+    .option("--json", "emit compact JSON")
+    .action(async (options: { kind?: string; all?: boolean; json?: boolean }) => {
+      const result = await cmdEvidenceRun({ cwd, kind: options.kind, all: Boolean(options.all) });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+
+  const decisions = program.command("decisions").description("manage compact invalidable architecture decisions");
+  decisions
+    .command("add")
+    .requiredOption("--title <title>", "decision title")
+    .requiredOption("--summary <summary>", "decision summary")
+    .option("--rationale <text>", "decision rationale")
+    .option("--module <moduleId>", "module id")
+    .option("--file <path>", "relative file path")
+    .option("--symbol <fqName>", "symbol fq name")
+    .option("--json", "emit compact JSON")
+    .action(async (options: { title?: string; summary?: string; rationale?: string; module?: string; file?: string; symbol?: string; json?: boolean }) => {
+      const result = await cmdDecisionAdd({ cwd, title: options.title, summary: options.summary, rationale: options.rationale, moduleId: options.module, filePath: options.file, symbolFqName: options.symbol });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+  decisions
+    .command("list")
+    .option("--status <status>", "active|stale|contradicted")
+    .option("--json", "emit compact JSON")
+    .action(async (options: { status?: string; json?: boolean }) => {
+      const result = await cmdDecisionList({ cwd, status: options.status });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+  decisions
+    .command("get")
+    .argument("<idOrTitle>", "decision id or title")
+    .option("--json", "emit compact JSON")
+    .action(async (idOrTitle: string, options: { json?: boolean }) => {
+      const result = await cmdDecisionGet({ cwd, idOrTitle });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+  decisions
+    .command("status")
+    .argument("<id>", "decision id")
+    .requiredOption("--status <status>", "active|stale|contradicted")
+    .option("--reason <reason>", "status reason")
+    .option("--json", "emit compact JSON")
+    .action(async (id: string, options: { status?: string; reason?: string; json?: boolean }) => {
+      const result = await cmdDecisionStatus({ cwd, id: Number(id), status: options.status ?? "", reason: options.reason });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+
+  program
+    .command("feedback")
+    .description("record bounded feedback on an evidence key")
+    .requiredOption("--evidence <key>", "evidence key such as file:src/a.ts")
+    .requiredOption("--signal <signal>", "useful|not_useful|accepted|rejected|opened")
+    .option("--intent <intent>", "optional feedback intent")
+    .option("--json", "emit compact JSON")
+    .action(async (options: { evidence?: string; signal?: string; intent?: string; json?: boolean }) => {
+      const result = await cmdFeedback({ cwd, evidenceKey: options.evidence, signal: options.signal, intent: options.intent });
+      exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
+    });
+  evidence
+    .command("list")
+    .description("list recently imported runtime evidence")
+    .option("--json", "emit compact JSON")
+    .action(async (options: { json?: boolean }) => {
+      const result = await cmdEvidenceList({ cwd });
       exitCode = printCommandResult(result, Boolean(options.json ?? program.opts<{ json?: boolean }>().json));
     });
 
